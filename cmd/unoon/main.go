@@ -3,17 +3,19 @@ package main
 import (
 	"fmt"
 	"time"
+
+	"github.com/kushaldas/unoon/pkg/localprocess"
 )
 
-var PDB ProcessDB
+var PDB localprocess.ProcessDB
 
 func main() {
 
-	PDB = processMap()
+	PDB = localprocess.ProcessMap()
 
 	for {
 		time.Sleep(2 * time.Second)
-		allps := processMap()
+		allps := localprocess.ProcessMap()
 		// Now check which all processes no longer exists
 		for k, v := range allps {
 			_, ok := PDB[k]

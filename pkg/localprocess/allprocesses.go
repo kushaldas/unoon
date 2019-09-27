@@ -1,4 +1,4 @@
-package main
+package localprocess
 
 import (
 	"strconv"
@@ -19,8 +19,8 @@ type ProcessDetails struct {
 // ProcessDB is a map with keys for each PID and value as ProcessDetails
 type ProcessDB map[string]ProcessDetails
 
-// processMap returns currently running processes with Network Connections.
-func processMap() ProcessDB {
+// ProcessMap returns currently running processes with Network Connections.
+func ProcessMap() ProcessDB {
 	//networkPS := make([]net.ConnectionStat, 1)
 	allps, _ := process.Processes()
 	localdb := make(ProcessDB, 1)
