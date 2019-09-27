@@ -8,7 +8,7 @@ import (
 	"github.com/shirou/gopsutil/process"
 )
 
-// This is the state of the current processes
+// ProcessDetails stores a currently running process with network connections.
 type ProcessDetails struct {
 	Name        string
 	Pid         int32
@@ -16,8 +16,10 @@ type ProcessDetails struct {
 	Connections []net.ConnectionStat
 }
 
+// ProcessDB is a map with keys for each PID and value as ProcessDetails
 type ProcessDB map[string]ProcessDetails
 
+// processMap returns currently running processes with Network Connections.
 func processMap() ProcessDB {
 	//networkPS := make([]net.ConnectionStat, 1)
 	allps, _ := process.Processes()
