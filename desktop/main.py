@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from PyQt5 import QtGui, QtWidgets
+from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QTableWidgetItem
 import subprocess
@@ -24,10 +24,71 @@ class DataThread(QThread):
             self.signal.emit(data)
 
 
+class WhiteDialog(QtWidgets.QDialog):
+    newwhitelist = QtCore.pyqtSignal(str)
+
+    def __init__(self, text):
+        super(WhiteDialog, self).__init__()
+        self.setWindowTitle("Whitelist commands")
+        self.setModal(True)
+        self.setMinimumWidth(500)
+
+        self.textbox = QtWidgets.QTextEdit()
+        # We want only plain text
+        self.textbox.setAcceptRichText(False)
+        self.textbox.setPlainText(text)
+
+        # Dialog buttons
+        ok_button = QtWidgets.QPushButton("Save")
+        ok_button.clicked.connect(self.save)
+        c_button = QtWidgets.QPushButton("cancel")
+        c_button.clicked.connect(self.cancel)
+
+        button_hboxlayout = QtWidgets.QHBoxLayout()
+        button_hboxlayout.addStretch()
+        button_hboxlayout.addWidget(c_button)
+        button_hboxlayout.addWidget(ok_button)
+        b = QtWidgets.QWidget()
+        b.setLayout(button_hboxlayout)
+
+        group_vboxlayout = QtWidgets.QVBoxLayout()
+        group_vboxlayout.addWidget(self.textbox)
+        group_vboxlayout.addWidget(b)
+
+        groupbox = QtWidgets.QGroupBox("Whitelisted commands")
+        groupbox.setLayout(group_vboxlayout)
+
+        big_layout = QtWidgets.QVBoxLayout()
+        big_layout.addWidget(groupbox)
+        self.setLayout(big_layout)
+
+    def save(self):
+        "Saves the text from the textbox"
+        text = self.textbox.toPlainText()
+        with open("./whitelists.txt", "w") as fobj:
+            fobj.write(text)
+
+        self.newwhitelist.emit(text)
+        self.close()
+
+    def cancel(self):
+        self.close()
+
+
 class FriendlyApp(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(FriendlyApp, self).__init__(parent)
         self.cl = redis.Redis()
+
+        self.whitelists_text = ""
+        self.whitelist = []
+
+        # TODO: Fix the path of the whitelist rules
+        if os.path.exists("whitelists.txt"):
+            with open("whitelists.txt") as fobj:
+                self.whitelists_text = fobj.read()
+
+        self.update_whitelist(self.whitelists_text)
 
         self.setMinimumWidth(1000)
         self.setMinimumHeight(600)
@@ -62,19 +123,42 @@ class FriendlyApp(QtWidgets.QMainWindow):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
 
         self.tabs = QtWidgets.QTabWidget()
-        # layout = QtWidgets.QHBoxLayout()
-        # layout.addWidget(self.pTable)
 
         self.tabs.addTab(self.pTable, "Current Processes")
         self.tabs.addTab(self.wTable, "Whitelisted Processes")
         self.setCentralWidget(self.tabs)
 
-        # self.pTable.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
+        exitAction = QtWidgets.QAction("E&xit", self)
+        exitAction.triggered.connect(self.exit_process)
+
+        whitelistAction = QtWidgets.QAction("&Whistlist", self)
+        whitelistAction.triggered.connect(self.show_whitelist)
+        menu = self.menuBar()
+        file = menu.addMenu("&File")
+        file.addAction(exitAction)
+
+        edit = menu.addMenu("&Edit")
+        edit.addAction(whitelistAction)
+
         self.pTable.setColumnWidth(0, 80)
         self.cp = {}
         self.tr = DataThread()
         self.tr.signal.connect(self.update_cp)
         self.tr.start()
+
+    def update_whitelist(self, text):
+        # Create the current list of whitelisted commands
+        self.whitelists_text = text
+        for cmd in text.split("\n"):
+            cmd = cmd.strip()
+            self.whitelist.append(cmd)
+        print(text)
+
+    def show_whitelist(self):
+        "Updates the current whitelist commands"
+        self.whitedialog = WhiteDialog(self.whitelists_text)
+        self.whitedialog.newwhitelist.connect(self.update_whitelist)
+        self.whitedialog.exec_()
 
     def update_cp(self, result):
         # data is the list of dicts with currentProcess struct
@@ -116,6 +200,9 @@ class FriendlyApp(QtWidgets.QMainWindow):
                 self.pTable.setItem(num - 1, 3, QTableWidgetItem(con["status"]))
                 self.pTable.setItem(num - 1, 4, QTableWidgetItem(key))
                 self.pTable.setItem(num - 1, 5, QTableWidgetItem(str(con["uids"])))
+
+    def exit_process(self):
+        sys.exit(0)
 
 
 def main():
