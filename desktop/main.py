@@ -24,11 +24,11 @@ class DataThread(QThread):
             self.signal.emit(data)
 
 
-class WhiteDialog(QtWidgets.QDialog):
+class WhitelistDialog(QtWidgets.QDialog):
     newwhitelist = QtCore.pyqtSignal(str)
 
     def __init__(self, text):
-        super(WhiteDialog, self).__init__()
+        super(WhitelistDialog, self).__init__()
         self.setWindowTitle("Whitelist commands")
         self.setModal(True)
         self.setMinimumWidth(500)
@@ -141,7 +141,10 @@ class FriendlyApp(QtWidgets.QMainWindow):
         edit.addAction(whitelistAction)
 
         self.pTable.setColumnWidth(0, 80)
+
+        self.first_run = True
         self.cp = {}
+
         self.tr = DataThread()
         self.tr.signal.connect(self.update_cp)
         self.tr.start()
@@ -157,9 +160,9 @@ class FriendlyApp(QtWidgets.QMainWindow):
 
     def show_whitelist(self):
         "Updates the current whitelist commands"
-        self.whitedialog = WhiteDialog(self.whitelists_text)
-        self.whitedialog.newwhitelist.connect(self.update_whitelist)
-        self.whitedialog.exec_()
+        self.whitelist_dialog = WhitelistDialog(self.whitelists_text)
+        self.whitelist_dialog.newwhitelist.connect(self.update_whitelist)
+        self.whitelist_dialog.exec_()
 
     def update_cp(self, result):
         # data is the list of dicts with currentProcess struct
@@ -189,9 +192,6 @@ class FriendlyApp(QtWidgets.QMainWindow):
                 if cp_key in self.cp:
                     continue
 
-                # For new processes
-                self.cp[cp_key] = datum
-
                 whitelist_flag = False
                 for cmd in self.whitelist:
                     # The following is True for whitelisted commands
@@ -201,12 +201,23 @@ class FriendlyApp(QtWidgets.QMainWindow):
                         )
                         whitelist_flag = True
                         break
+
+                # Display popup
+                if not self.first_run and cp_key not in self.cp and not whitelist_flag:
+                    print("popup: {}".format(cp_key))
+
+                # For new processes
+                self.cp[cp_key] = datum
+
                 if whitelist_flag:
                     continue
 
                 self.update_processtable(
                     self.pTable, datum, con, local, remote, key, ac
                 )
+
+        if self.first_run:
+            self.first_run = False
 
     def update_processtable(self, table, datum, con, local, remote, key, ac):
         "Updates the given table with the new data in a new row"
