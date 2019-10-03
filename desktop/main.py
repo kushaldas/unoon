@@ -75,9 +75,9 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.close()
 
 
-class FriendlyApp(QtWidgets.QMainWindow):
+class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
-        super(FriendlyApp, self).__init__(parent)
+        super(MainWindow, self).__init__(parent)
         self.cl = redis.Redis()
 
         self.whitelists_text = ""
@@ -237,7 +237,7 @@ class FriendlyApp(QtWidgets.QMainWindow):
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
-    form = FriendlyApp()
+    form = MainWindow()
     form.show()
     app.exec_()
 
