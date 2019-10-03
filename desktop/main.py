@@ -151,7 +151,8 @@ class FriendlyApp(QtWidgets.QMainWindow):
         self.whitelists_text = text
         for cmd in text.split("\n"):
             cmd = cmd.strip()
-            self.whitelist.append(cmd)
+            if cmd:
+                self.whitelist.append(cmd)
         print(text)
 
     def show_whitelist(self):
