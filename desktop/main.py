@@ -75,6 +75,28 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.close()
 
 
+class NewConnectionDialog(QtWidgets.QDialog):
+    def __init__(self, datum, remote, pid, user):
+        super(NewConnectionDialog, self).__init__()
+
+        cmd_label = QtWidgets.QLabel(datum["Cmdline"])
+        cmd_label.setStyleSheet("QLabel { font-weight: bold; font-size: 20px; }")
+        remote_label = QtWidgets.QLabel(remote)
+        pid_label = QtWidgets.QLabel("PID: {}".format(pid))
+        user_label = QtWidgets.QLabel("User: {}".format(user))
+        cwd_label = QtWidgets.QLabel("Directory: {}".format(datum["Cwd"]))
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(cmd_label)
+        layout.addWidget(remote_label)
+        layout.addWidget(pid_label)
+        layout.addWidget(user_label)
+        layout.addWidget(cwd_label)
+        self.setLayout(layout)
+
+        self.show()
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
@@ -143,6 +165,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pTable.setColumnWidth(0, 80)
 
         self.first_run = True
+        self.new_connection_dialogs = []
         self.cp = {}
 
         self.tr = DataThread()
@@ -168,9 +191,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # data is the list of dicts with currentProcess struct
         data = {}
         data = json.loads(result[1])
-        keys = data.keys()
-        for key in keys:
-            datum = data[key]
+        pids = data.keys()
+        for pid in pids:
+            datum = data[pid]
             ac = datum["Cmdline"].split(" ")[0]
             # print(ac)
             for con in datum["Connections"]:
@@ -188,7 +211,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     remote_host = remote_ip
 
                 remote = "{}:{}".format(remote_host, remotecon["port"])
-                cp_key = "{0}:{1}:{2}:{3}".format(ac, key, local, remote)
+                cp_key = "{0}:{1}:{2}".format(ac, pid, remote)
                 if cp_key in self.cp:
                     continue
 
@@ -197,14 +220,16 @@ class MainWindow(QtWidgets.QMainWindow):
                     # The following is True for whitelisted commands
                     if ac.startswith(cmd):
                         self.update_processtable(
-                            self.wTable, datum, con, local, remote, key, ac
+                            self.wTable, datum, con, local, remote, pid, ac
                         )
                         whitelist_flag = True
                         break
 
                 # Display popup
                 if not self.first_run and cp_key not in self.cp and not whitelist_flag:
-                    print("popup: {}".format(cp_key))
+                    user = con["uids"][0]
+                    d = NewConnectionDialog(datum, remote, pid, user)
+                    self.new_connection_dialogs.append(d)
 
                 # For new processes
                 self.cp[cp_key] = datum
@@ -213,13 +238,13 @@ class MainWindow(QtWidgets.QMainWindow):
                     continue
 
                 self.update_processtable(
-                    self.pTable, datum, con, local, remote, key, ac
+                    self.pTable, datum, con, local, remote, pid, ac
                 )
 
         if self.first_run:
             self.first_run = False
 
-    def update_processtable(self, table, datum, con, local, remote, key, ac):
+    def update_processtable(self, table, datum, con, local, remote, pid, ac):
         "Updates the given table with the new data in a new row"
         num = table.rowCount() + 1
         table.setRowCount(num)
@@ -228,7 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
         table.setItem(num - 1, 1, QTableWidgetItem(local))
         table.setItem(num - 1, 2, QTableWidgetItem(remote))
         table.setItem(num - 1, 3, QTableWidgetItem(con["status"]))
-        table.setItem(num - 1, 4, QTableWidgetItem(key))
+        table.setItem(num - 1, 4, QTableWidgetItem(pid))
         table.setItem(num - 1, 5, QTableWidgetItem(str(con["uids"])))
 
     def exit_process(self):
