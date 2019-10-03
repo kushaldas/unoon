@@ -191,15 +191,33 @@ class FriendlyApp(QtWidgets.QMainWindow):
                 # For new processes
                 self.cp[cp_key] = datum
 
-                num = self.pTable.rowCount() + 1
-                self.pTable.setRowCount(num)
-                self.pTable.setItem(num - 1, 0, QTableWidgetItem(ac))
-                self.pTable.item(num - 1, 0).setToolTip(datum["Cmdline"])
-                self.pTable.setItem(num - 1, 1, QTableWidgetItem(local))
-                self.pTable.setItem(num - 1, 2, QTableWidgetItem(remote))
-                self.pTable.setItem(num - 1, 3, QTableWidgetItem(con["status"]))
-                self.pTable.setItem(num - 1, 4, QTableWidgetItem(key))
-                self.pTable.setItem(num - 1, 5, QTableWidgetItem(str(con["uids"])))
+                whitelist_flag = False
+                for cmd in self.whitelist:
+                    # The following is True for whitelisted commands
+                    if ac.startswith(cmd):
+                        self.update_processtable(
+                            self.wTable, datum, con, local, remote, key, ac
+                        )
+                        whitelist_flag = True
+                        break
+                if whitelist_flag:
+                    continue
+
+                self.update_processtable(
+                    self.pTable, datum, con, local, remote, key, ac
+                )
+
+    def update_processtable(self, table, datum, con, local, remote, key, ac):
+        "Updates the given table with the new data in a new row"
+        num = table.rowCount() + 1
+        table.setRowCount(num)
+        table.setItem(num - 1, 0, QTableWidgetItem(ac))
+        table.item(num - 1, 0).setToolTip(datum["Cmdline"])
+        table.setItem(num - 1, 1, QTableWidgetItem(local))
+        table.setItem(num - 1, 2, QTableWidgetItem(remote))
+        table.setItem(num - 1, 3, QTableWidgetItem(con["status"]))
+        table.setItem(num - 1, 4, QTableWidgetItem(key))
+        table.setItem(num - 1, 5, QTableWidgetItem(str(con["uids"])))
 
     def exit_process(self):
         sys.exit(0)
