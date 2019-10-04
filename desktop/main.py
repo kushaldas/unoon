@@ -101,6 +101,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.cl = redis.Redis()
+        self.pid = str(os.getpid())
 
         self.whitelists_text = ""
         self.whitelist = []
@@ -193,6 +194,9 @@ class MainWindow(QtWidgets.QMainWindow):
         data = json.loads(result[1])
         pids = data.keys()
         for pid in pids:
+            # Skip desktop application itself
+            if str(pid) == self.pid:
+                continue
             datum = data[pid]
             ac = datum["Cmdline"].split(" ")[0]
             # print(ac)
