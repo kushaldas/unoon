@@ -7,7 +7,14 @@ import os
 import sys
 import redis
 import json
+import pwd
 from pprint import pprint
+
+
+def find_user(uid: int):
+    "Find the username from the User ID"
+    st = pwd.getpwuid(uid)
+    return st.pw_name
 
 
 class DataThread(QThread):
@@ -31,7 +38,7 @@ class WhitelistDialog(QtWidgets.QDialog):
         super(WhitelistDialog, self).__init__()
         self.setWindowTitle("Whitelist commands")
         self.setModal(True)
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(700)
 
         self.textbox = QtWidgets.QTextEdit()
         # We want only plain text
@@ -79,6 +86,8 @@ class NewConnectionDialog(QtWidgets.QDialog):
     def __init__(self, datum, remote, pid, user):
         super(NewConnectionDialog, self).__init__()
 
+        self.setWindowTitle("Alert")
+
         cmd_label = QtWidgets.QLabel(datum["Cmdline"])
         cmd_label.setStyleSheet("QLabel { font-weight: bold; font-size: 20px; }")
         remote_label = QtWidgets.QLabel(remote)
@@ -100,6 +109,7 @@ class NewConnectionDialog(QtWidgets.QDialog):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
+        self.setWindowTitle("Unoon")
         self.cl = redis.Redis()
         self.pid = str(os.getpid())
 
@@ -127,7 +137,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # get a current processes table widget
         self.pTable = QtWidgets.QTableWidget()
-        self.pTable.setColumnCount(6)
+        self.pTable.setColumnCount(7)
+        self.pTable.setColumnHidden(6, True)
 
         self.pTable.setHorizontalHeaderLabels(header_labels)
         header = self.pTable.horizontalHeader()
@@ -137,7 +148,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # get a whitelisted processes table widget
         self.wTable = QtWidgets.QTableWidget()
-        self.wTable.setColumnCount(6)
+        self.wTable.setColumnCount(7)
+        self.wTable.setColumnHidden(6, True)
 
         self.wTable.setHorizontalHeaderLabels(header_labels)
         header = self.wTable.horizontalHeader()
@@ -193,6 +205,7 @@ class MainWindow(QtWidgets.QMainWindow):
         data = {}
         data = json.loads(result[1])
         pids = data.keys()
+        current_keys = {}
         for pid in pids:
             # Skip desktop application itself
             if str(pid) == self.pid:
@@ -216,6 +229,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 remote = "{}:{}".format(remote_host, remotecon["port"])
                 cp_key = "{0}:{1}:{2}".format(ac, pid, remote)
+                # record the key
+                current_keys[cp_key] = True
                 if cp_key in self.cp:
                     continue
 
@@ -224,14 +239,14 @@ class MainWindow(QtWidgets.QMainWindow):
                     # The following is True for whitelisted commands
                     if ac.startswith(cmd):
                         self.update_processtable(
-                            self.wTable, datum, con, local, remote, pid, ac
+                            self.wTable, datum, con, local, remote, pid, ac, cp_key
                         )
                         whitelist_flag = True
                         break
 
                 # Display popup
                 if not self.first_run and cp_key not in self.cp and not whitelist_flag:
-                    user = con["uids"][0]
+                    user = find_user(con["uids"][0])
                     d = NewConnectionDialog(datum, remote, pid, user)
                     self.new_connection_dialogs.append(d)
 
@@ -242,13 +257,37 @@ class MainWindow(QtWidgets.QMainWindow):
                     continue
 
                 self.update_processtable(
-                    self.pTable, datum, con, local, remote, pid, ac
+                    self.pTable, datum, con, local, remote, pid, ac, cp_key
                 )
 
+        delkeys = []
+        for key in self.cp.keys():
+            if key not in current_keys:
+                # means this connection is no longer there
+                # Add to the list of keys to be deleted later
+                delkeys.append(key)
+
+                # Check in the normal process table
+                items = self.pTable.findItems(key, QtCore.Qt.MatchFixedString)
+                if items:
+                    item = items[0]
+                    self.pTable.removeRow(item.row())
+                    continue
+
+                # Check in the whitelisted process table
+                items = self.wTable.findItems(key, QtCore.Qt.MatchFixedString)
+                if items:
+                    item = items[0]
+                    self.wTable.removeRow(item.row())
+                    continue
+
+        # Clean the local keys from current processes+network connections
+        for key in delkeys:
+            del self.cp[key]
         if self.first_run:
             self.first_run = False
 
-    def update_processtable(self, table, datum, con, local, remote, pid, ac):
+    def update_processtable(self, table, datum, con, local, remote, pid, ac, cp_key):
         "Updates the given table with the new data in a new row"
         num = table.rowCount() + 1
         table.setRowCount(num)
@@ -258,13 +297,19 @@ class MainWindow(QtWidgets.QMainWindow):
         table.setItem(num - 1, 2, QTableWidgetItem(remote))
         table.setItem(num - 1, 3, QTableWidgetItem(con["status"]))
         table.setItem(num - 1, 4, QTableWidgetItem(pid))
-        table.setItem(num - 1, 5, QTableWidgetItem(str(con["uids"])))
+        user = find_user(con["uids"][0])
+        table.setItem(num - 1, 5, QTableWidgetItem(user))
+        table.setItem(num - 1, 6, QTableWidgetItem(cp_key))
+        table.scrollToBottom()
 
     def exit_process(self):
         sys.exit(0)
 
 
 def main():
+    # first clean all old data
+    r = redis.Redis()
+    r.delete("currentprocesses")
     app = QtWidgets.QApplication(sys.argv)
     form = MainWindow()
     form.show()
