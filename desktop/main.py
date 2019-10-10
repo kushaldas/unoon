@@ -2,6 +2,7 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QTableWidgetItem
+from ucss import *
 import subprocess
 import os
 import sys
@@ -179,9 +180,13 @@ class MainWindow(QtWidgets.QMainWindow):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
 
         self.tabs = QtWidgets.QTabWidget()
+        self.tabs.setIconSize(QtCore.QSize(25, 25))
+        self.tabs.setStyleSheet(QTAB)
 
-        self.tabs.addTab(self.pTable, "Current Processes")
-        self.tabs.addTab(self.wTable, "Whitelisted Processes")
+        normalicon = QtGui.QIcon("./magnify.png")
+        self.tabs.addTab(self.pTable, normalicon, "Current Processes")
+        whitelisticon = QtGui.QIcon("./security_tick.png")
+        self.tabs.addTab(self.wTable, whitelisticon, "Whitelisted Processes")
         self.setCentralWidget(self.tabs)
 
         exitAction = QtWidgets.QAction("E&xit", self)
