@@ -21,12 +21,31 @@ def find_user(uid: int):
 class TableWidget(QtWidgets.QTableWidget):
     def __init__(self):
         super(TableWidget, self).__init__()
+        self.setIconSize(QtCore.QSize(20, 20))
         self.menu = QtWidgets.QMenu()
         action = QtWidgets.QAction("Mark as Whitelist", self)
         action.triggered.connect(lambda: self.rightClickSlot())
         self.menu.addAction(action)
 
         self.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self.setColumnCount(7)
+        self.setColumnHidden(6, True)
+        header_labels = [
+            "Executable",
+            "Local Addr",
+            "Remote Addr",
+            "status",
+            "PID",
+            "User",
+        ]
+        self.setHorizontalHeaderLabels(header_labels)
+        self.setHorizontalHeaderItem(
+            0, QTableWidgetItem(QtGui.QIcon("terminal.png"), "Executable")
+        )
+        header = self.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
 
     def rightClickSlot(self):
         for i in self.selectionModel().selection().indexes():
@@ -148,36 +167,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumWidth(1000)
         self.setMinimumHeight(600)
 
-        header_labels = [
-            "Executable",
-            "Local Addr",
-            "Remote Addr",
-            "status",
-            "PID",
-            "User",
-        ]
-
         # get a current processes table widget
         self.pTable = TableWidget()
-        self.pTable.setColumnCount(7)
-        self.pTable.setColumnHidden(6, True)
-
-        self.pTable.setHorizontalHeaderLabels(header_labels)
-        header = self.pTable.horizontalHeader()
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
 
         # get a whitelisted processes table widget
-        self.wTable = QtWidgets.QTableWidget()
-        self.wTable.setColumnCount(7)
-        self.wTable.setColumnHidden(6, True)
-
-        self.wTable.setHorizontalHeaderLabels(header_labels)
-        header = self.wTable.horizontalHeader()
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        self.wTable = TableWidget()
 
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setIconSize(QtCore.QSize(25, 25))
