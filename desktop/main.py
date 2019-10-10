@@ -17,6 +17,27 @@ def find_user(uid: int):
     return st.pw_name
 
 
+class TableWidget(QtWidgets.QTableWidget):
+    def __init__(self):
+        super(TableWidget, self).__init__()
+        self.menu = QtWidgets.QMenu()
+        action = QtWidgets.QAction("Mark as Whitelist", self)
+        action.triggered.connect(lambda: self.rightClickSlot())
+        self.menu.addAction(action)
+
+        self.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+
+    def rightClickSlot(self):
+        for i in self.selectionModel().selection().indexes():
+            # TODO: find the item and open up the Dialog for adding in whitelist.
+            print(i.row(), i.column())
+
+    def contextMenuEvent(self, event):
+        col = self.columnAt(event.pos().x())
+        if col == 0:
+            self.menu.popup(QtGui.QCursor.pos())
+
+
 class DataThread(QThread):
     signal = pyqtSignal("PyQt_PyObject")
 
@@ -136,7 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ]
 
         # get a current processes table widget
-        self.pTable = QtWidgets.QTableWidget()
+        self.pTable = TableWidget()
         self.pTable.setColumnCount(7)
         self.pTable.setColumnHidden(6, True)
 
