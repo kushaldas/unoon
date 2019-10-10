@@ -21,9 +21,11 @@ def find_user(uid: int):
 class TableWidget(QtWidgets.QTableWidget):
     def __init__(self):
         super(TableWidget, self).__init__()
-        self.setIconSize(QtCore.QSize(20, 20))
+        self.setIconSize(QtCore.QSize(25, 25))
         self.menu = QtWidgets.QMenu()
         action = QtWidgets.QAction("Mark as Whitelist", self)
+        whitelisticon = QtGui.QIcon("./security_tick.png")
+        action.setIcon(whitelisticon)
         action.triggered.connect(lambda: self.rightClickSlot())
         self.menu.addAction(action)
 
@@ -41,6 +43,9 @@ class TableWidget(QtWidgets.QTableWidget):
         self.setHorizontalHeaderLabels(header_labels)
         self.setHorizontalHeaderItem(
             0, QTableWidgetItem(QtGui.QIcon("terminal.png"), "Executable")
+        )
+        self.setHorizontalHeaderItem(
+            2, QTableWidgetItem(QtGui.QIcon("cloud_up.png"), "Remote")
         )
         header = self.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
