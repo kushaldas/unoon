@@ -203,6 +203,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.pTable.setColumnWidth(0, 80)
 
+        self.shortcut1 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+1"), self)
+        self.shortcut1.activated.connect(self.showcurrenttab)
+        self.shortcut2 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+2"), self)
+        self.shortcut2.activated.connect(self.showwhitelisttab)
+
         self.first_run = True
         self.new_connection_dialogs = []
         self.cp = {}
@@ -210,6 +215,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tr = DataThread()
         self.tr.signal.connect(self.update_cp)
         self.tr.start()
+
+    def showcurrenttab(self):
+        self.tabs.setCurrentIndex(0)
+
+    def showwhitelisttab(self):
+        self.tabs.setCurrentIndex(1)
 
     def update_whitelist(self, text):
         # Create the current list of whitelisted commands
