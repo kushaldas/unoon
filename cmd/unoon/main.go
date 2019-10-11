@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"time"
 
 	"github.com/go-redis/redis/v7"
@@ -11,7 +12,10 @@ var PDB localprocess.ProcessDB
 
 func main() {
 
-	go localprocess.RecordDNS("wlp4s0")
+	device := flag.String("device", "wlp4s0", "The device from where we will capture DNS data  (as root).")
+	flag.Parse()
+
+	go localprocess.RecordDNS(*device)
 	redisdb := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379", // use default Addr
 		Password: "",               // no password set
