@@ -91,6 +91,16 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.textbox.setAcceptRichText(False)
         self.textbox.setPlainText(text)
 
+        whitelistlargeicon = QtWidgets.QLabel()
+        whitepixmap = QtGui.QPixmap("security_tick_large.png")
+        whitelistlargeicon.setPixmap(whitepixmap)
+        whitelistlabel = QtWidgets.QLabel("List of Whitelisted commands")
+        whitelistlabel.setStyleSheet(QWhiteListBannerCSS)
+
+        banner_hboxlayout = QtWidgets.QHBoxLayout()
+        banner_hboxlayout.addWidget(whitelistlargeicon)
+        banner_hboxlayout.addWidget(whitelistlabel)
+        banner_hboxlayout.addStretch()
         # Dialog buttons
         ok_button = QtWidgets.QPushButton("Save")
         ok_button.clicked.connect(self.save)
@@ -105,15 +115,16 @@ class WhitelistDialog(QtWidgets.QDialog):
         b.setLayout(button_hboxlayout)
 
         group_vboxlayout = QtWidgets.QVBoxLayout()
+        group_vboxlayout.addLayout(banner_hboxlayout)
         group_vboxlayout.addWidget(self.textbox)
         group_vboxlayout.addWidget(b)
 
-        groupbox = QtWidgets.QGroupBox("Whitelisted commands")
-        groupbox.setLayout(group_vboxlayout)
+        # groupbox = QtWidgets.QGroupBox("Whitelisted commands")
+        # groupbox.setLayout(group_vboxlayout)
 
-        big_layout = QtWidgets.QVBoxLayout()
-        big_layout.addWidget(groupbox)
-        self.setLayout(big_layout)
+        # big_layout = QtWidgets.QVBoxLayout()
+        # big_layout.addWidget(groupbox)
+        self.setLayout(group_vboxlayout)
 
     def save(self):
         "Saves the text from the textbox"
