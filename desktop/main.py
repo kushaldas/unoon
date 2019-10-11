@@ -133,9 +133,11 @@ class NewConnectionDialog(QtWidgets.QDialog):
         super(NewConnectionDialog, self).__init__()
 
         self.setWindowTitle("Alert")
+        self.setWindowIcon(QtGui.QIcon("alert.png"))
 
         cmd_label = QtWidgets.QLabel(datum["Cmdline"])
         cmd_label.setStyleSheet("QLabel { font-weight: bold; font-size: 20px; }")
+        cmd_label.setWordWrap(True)
         remote_label = QtWidgets.QLabel(remote)
         pid_label = QtWidgets.QLabel("PID: {}".format(pid))
         user_label = QtWidgets.QLabel("User: {}".format(user))
