@@ -30,7 +30,7 @@ In fedora: `sudo dnf install python3-pyqt5 python3-redis`
 Build the go portion with:
 
 ```sh
-go build github.com/kushaldas/unoon/cmd/unoo
+go build github.com/kushaldas/unoon/cmd/unoon
 ```
 
 ### Start
@@ -40,6 +40,8 @@ Start the backend:
 ```sh
 sudo ./unoon
 ```
+
+You can pass a different interface name with `-device` flag to the `unoon` executable.
 
 Start the frontend:
 
