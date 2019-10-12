@@ -9,7 +9,12 @@ import sys
 import redis
 import json
 import pwd
+from datetime import datetime
 from pprint import pprint
+
+PROCESSTYPE = 1
+WHITETYPE = 2
+LOGSTYPE = 3
 
 
 def find_user(uid: int):
@@ -19,8 +24,12 @@ def find_user(uid: int):
 
 
 class TableWidget(QtWidgets.QTableWidget):
-    def __init__(self):
+    def __init__(self, tabletype=PROCESSTYPE):
         super(TableWidget, self).__init__()
+        # PROCESSTYPE: this is a process table
+        # WHITETYPE: this is a whitelisted table
+        # LOGSTYPE: this is a history logs table
+        self.tabletype = tabletype
         self.setIconSize(QtCore.QSize(25, 25))
         self.menu = QtWidgets.QMenu()
         action = QtWidgets.QAction("Mark as Whitelist", self)
@@ -31,15 +40,28 @@ class TableWidget(QtWidgets.QTableWidget):
 
         self.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.setColumnCount(7)
-        self.setColumnHidden(6, True)
-        header_labels = [
-            "Executable",
-            "Local Addr",
-            "Remote Addr",
-            "status",
-            "PID",
-            "User",
-        ]
+        if self.tabletype != LOGSTYPE:
+            # The unique value is hidden for process and whitelist tables
+            self.setColumnHidden(6, True)
+        if self.tabletype != LOGSTYPE:
+            header_labels = [
+                "Executable",
+                "Local Addr",
+                "Remote Addr",
+                "status",
+                "PID",
+                "User",
+            ]
+        else:
+            header_labels = [
+                "Executable",
+                "Local Addr",
+                "Remote Addr",
+                "status",
+                "PID",
+                "User",
+                "Time",
+            ]
         self.setHorizontalHeaderLabels(header_labels)
         self.setHorizontalHeaderItem(
             0, QTableWidgetItem(QtGui.QIcon("terminal.png"), "Executable")
@@ -51,6 +73,8 @@ class TableWidget(QtWidgets.QTableWidget):
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        if self.tabletype == LOGSTYPE:
+            header.setSectionResizeMode(6, QtWidgets.QHeaderView.ResizeToContents)
 
     def rightClickSlot(self):
         for i in self.selectionModel().selection().indexes():
@@ -60,7 +84,8 @@ class TableWidget(QtWidgets.QTableWidget):
     def contextMenuEvent(self, event):
         col = self.columnAt(event.pos().x())
         if col == 0:
-            self.menu.popup(QtGui.QCursor.pos())
+            if self.tabletype == PROCESSTYPE:
+                self.menu.popup(QtGui.QCursor.pos())
 
 
 class DataThread(QThread):
@@ -172,6 +197,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.cl = redis.Redis()
         self.pid = str(os.getpid())
 
+        # To store all alerts in runtime only
+        # TODO: In future store this in sqlite
+        self.logs = []
+
         self.whitelists_text = ""
         self.whitelist = []
 
@@ -186,10 +215,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumHeight(600)
 
         # get a current processes table widget
-        self.pTable = TableWidget()
+        self.pTable = TableWidget(tabletype=PROCESSTYPE)
 
         # get a whitelisted processes table widget
-        self.wTable = TableWidget()
+        self.wTable = TableWidget(tabletype=WHITETYPE)
+
+        # get a logs table to show history
+        self.logsTable = TableWidget(tabletype=LOGSTYPE)
 
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setIconSize(QtCore.QSize(25, 25))
@@ -199,6 +231,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.addTab(self.pTable, normalicon, "Current Processes")
         whitelisticon = QtGui.QIcon("./security_tick.png")
         self.tabs.addTab(self.wTable, whitelisticon, "Whitelisted Processes")
+        logsicon = QtGui.QIcon("./logs.png")
+        self.tabs.addTab(self.logsTable, logsicon, "History")
         self.setCentralWidget(self.tabs)
 
         exitAction = QtWidgets.QAction("E&xit", self)
@@ -219,6 +253,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.shortcut1.activated.connect(self.showcurrenttab)
         self.shortcut2 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+2"), self)
         self.shortcut2.activated.connect(self.showwhitelisttab)
+        self.shortcut3 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+3"), self)
+        self.shortcut3.activated.connect(self.showlogstab)
 
         self.first_run = True
         self.new_connection_dialogs = []
@@ -233,6 +269,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def showwhitelisttab(self):
         self.tabs.setCurrentIndex(1)
+
+    def showlogstab(self):
+        self.tabs.setCurrentIndex(2)
 
     def update_whitelist(self, text):
         # Create the current list of whitelisted commands
@@ -298,6 +337,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     user = find_user(con["uids"][0])
                     d = NewConnectionDialog(datum, remote, pid, user)
                     self.new_connection_dialogs.append(d)
+                    # Store for the runtime logs
+                    self.logs.append((datum, con, local, remote, pid, ac, cp_key))
 
                 # For new processes
                 self.cp[cp_key] = datum
@@ -307,6 +348,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 self.update_processtable(
                     self.pTable, datum, con, local, remote, pid, ac, cp_key
+                )
+                self.update_processtable(
+                    self.logsTable, datum, con, local, remote, pid, ac, cp_key, True
                 )
 
         delkeys = []
@@ -336,7 +380,9 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.first_run:
             self.first_run = False
 
-    def update_processtable(self, table, datum, con, local, remote, pid, ac, cp_key):
+    def update_processtable(
+        self, table, datum, con, local, remote, pid, ac, cp_key, history=False
+    ):
         "Updates the given table with the new data in a new row"
         num = table.rowCount() + 1
         table.setRowCount(num)
@@ -348,7 +394,14 @@ class MainWindow(QtWidgets.QMainWindow):
         table.setItem(num - 1, 4, QTableWidgetItem(pid))
         user = find_user(con["uids"][0])
         table.setItem(num - 1, 5, QTableWidgetItem(user))
-        table.setItem(num - 1, 6, QTableWidgetItem(cp_key))
+
+        if history:
+            now = datetime.now()
+            table.setItem(
+                num - 1, 6, QTableWidgetItem(now.strftime("%Y:%m:%d:%H:%M:%S"))
+            )
+        else:
+            table.setItem(num - 1, 6, QTableWidgetItem(cp_key))
         table.scrollToBottom()
 
     def exit_process(self):
@@ -358,6 +411,7 @@ class MainWindow(QtWidgets.QMainWindow):
 def main():
     # first clean all old data
     r = redis.Redis()
+    # TODO: In future we want a separate process to log details to DB
     r.delete("currentprocesses")
     app = QtWidgets.QApplication(sys.argv)
     form = MainWindow()
