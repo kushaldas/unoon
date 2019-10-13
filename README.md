@@ -39,7 +39,7 @@ You should run the redis server along with a password for production, and you
 can provide the same using the following format in `/etc/unoon/unoon.yml`
 file.
 
-If the file does not exists, it will assume no password is required.
+If the file does not exist, it will assume no password is required.
 
 ```yaml
 ---
