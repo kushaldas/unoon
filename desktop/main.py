@@ -151,11 +151,6 @@ class WhitelistDialog(QtWidgets.QDialog):
         group_vboxlayout.addWidget(self.textbox)
         group_vboxlayout.addWidget(b)
 
-        # groupbox = QtWidgets.QGroupBox("Whitelisted commands")
-        # groupbox.setLayout(group_vboxlayout)
-
-        # big_layout = QtWidgets.QVBoxLayout()
-        # big_layout.addWidget(groupbox)
         self.setLayout(group_vboxlayout)
 
     def save(self):
@@ -293,7 +288,6 @@ class MainWindow(QtWidgets.QMainWindow):
             cmd = cmd.strip()
             if cmd:
                 self.whitelist.append(cmd)
-        print(text)
 
     def show_whitelist(self):
         "Updates the current whitelist commands"
