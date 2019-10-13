@@ -11,6 +11,8 @@ import json
 import pwd
 from datetime import datetime
 from pprint import pprint
+import yaml
+
 
 PROCESSTYPE = 1
 WHITETYPE = 2
@@ -91,9 +93,14 @@ class TableWidget(QtWidgets.QTableWidget):
 class DataThread(QThread):
     signal = pyqtSignal("PyQt_PyObject")
 
-    def __init__(self):
+    def __init__(self, config={}):
         QThread.__init__(self)
-        self.cl = redis.Redis()
+        self.cl = redis.Redis(
+            host=config["host"],
+            port=config["port"],
+            password=config["password"],
+            db=config["db"],
+        )
 
     # run method gets called when we start the thread
     def run(self):
@@ -191,10 +198,16 @@ class NewConnectionDialog(QtWidgets.QDialog):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, config={}):
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Unoon")
-        self.cl = redis.Redis()
+
+        self.cl = redis.Redis(
+            host=config["host"],
+            port=config["port"],
+            password=config["password"],
+            db=config["db"],
+        )
         self.pid = str(os.getpid())
 
         # To store all alerts in runtime only
@@ -260,7 +273,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.new_connection_dialogs = []
         self.cp = {}
 
-        self.tr = DataThread()
+        self.tr = DataThread(config)
         self.tr.signal.connect(self.update_cp)
         self.tr.start()
 
@@ -409,12 +422,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main():
+    try:
+        with open("/etc/unoon/unoon.yml") as fobj:
+            config = yaml.safe_load(fobj.read())
+    except:
+        print("Error in reading configuration file. Using default values.")
+        config = {"server": "localhost:6379", "password": "", "db": 0}
+
+    host, port = config["server"].split(":")
+    port = int(port)
+    config["host"] = host
+    config["port"] = port
     # first clean all old data
-    r = redis.Redis()
+    r = redis.Redis(host=host, port=port, password=config["password"], db=config["db"])
     # TODO: In future we want a separate process to log details to DB
     r.delete("currentprocesses")
     app = QtWidgets.QApplication(sys.argv)
-    form = MainWindow()
+    form = MainWindow(config=config)
     form.show()
     app.exec_()
 
