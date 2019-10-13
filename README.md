@@ -33,6 +33,21 @@ Build the go portion with:
 go build github.com/kushaldas/unoon/cmd/unoon
 ```
 
+### Redis server configuration
+
+You should run the redis server along with a password for production, and you
+can provide the same using the following format in `/etc/unoon/unoon.yml`
+file.
+
+If the file does not exists, it will assume no password is required.
+
+```yaml
+---
+server: "localhost:6379"
+password: "yourpassword"
+db:     0
+```
+
 ### Start
 
 Start the backend:
