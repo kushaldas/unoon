@@ -74,7 +74,7 @@ func ProcessMap() ProcessDB {
 	return localdb
 }
 
-func RecordDNS(device string) {
+func RecordDNS(device string, server string, password string, db int) {
 
 	inactive, err := pcap.NewInactiveHandle(device)
 	if err != nil {
@@ -90,9 +90,9 @@ func RecordDNS(device string) {
 	defer handle.Close()
 
 	redisdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // use default Addr
-		Password: "",               // no password set
-		DB:       0,                // use default DB
+		Addr:     server,
+		Password: password,
+		DB:       db,
 	})
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
