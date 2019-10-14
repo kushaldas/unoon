@@ -61,5 +61,5 @@ You can pass a different interface name with `-device` flag to the `unoon` execu
 Start the frontend:
 
 ```sh
-./desktop/main.py
+sudo python3 ./desktop/main.py
 ```
