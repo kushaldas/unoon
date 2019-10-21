@@ -283,6 +283,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def update_whitelist(self, text):
         # Create the current list of whitelisted commands
+        self.whitelist = []
         self.whitelists_text = text
         for cmd in text.split("\n"):
             cmd = cmd.strip()
