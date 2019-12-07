@@ -19,6 +19,8 @@ PROCESSTYPE = 1
 WHITETYPE = 2
 LOGSTYPE = 3
 
+whitelist_file = "/var/lib/unoon/whitelist.txt"
+
 
 def find_user(uid: int) -> str:
     "Find the username from the User ID"
@@ -162,7 +164,7 @@ class WhitelistDialog(QtWidgets.QDialog):
     def save(self):
         "Saves the text from the textbox"
         text = self.textbox.toPlainText()
-        with open("./whitelists.txt", "w") as fobj:
+        with open(whitelist_file, "w") as fobj:
             fobj.write(text)
 
         self.newwhitelist.emit(text)
@@ -216,15 +218,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # TODO: In future store this in sqlite
         self.logs = []
 
-        self.whitelists_text = ""
+        self.whitelist_text = ""
         self.whitelist = []
 
         # TODO: Fix the path of the whitelist rules
-        if os.path.exists("whitelists.txt"):
-            with open("whitelists.txt") as fobj:
-                self.whitelists_text = fobj.read()
+        if os.path.exists(whitelist_file):
+            with open(whitelist_file) as fobj:
+                self.whitelist_text = fobj.read()
 
-        self.update_whitelist(self.whitelists_text)
+        self.update_whitelist(self.whitelist_text)
 
         self.setMinimumWidth(1000)
         self.setMinimumHeight(600)
