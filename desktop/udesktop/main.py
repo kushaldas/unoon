@@ -3,6 +3,7 @@ from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QTableWidgetItem
 from ucss import *
+from db import Processhistory, create_session
 import subprocess
 import os
 import sys
@@ -204,6 +205,7 @@ class MainWindow(QtWidgets.QMainWindow):
             db=config["db"],
         )
         self.pid = str(os.getpid())
+        self.session = create_session()
 
         # To store all alerts in runtime only
         # TODO: In future store this in sqlite
@@ -347,6 +349,24 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.new_connection_dialogs.append(d)
                     # Store for the runtime logs
                     self.logs.append((datum, con, local, remote, pid, ac, cp_key))
+
+                phistory = Processhistory(
+                    executable=ac.split()[0],
+                    command=ac,
+                    local_ip=con["localaddr"]["ip"],
+                    local_port=con["localaddr"]["port"],
+                    remote_ip=remote_host,
+                    remote_port=con["remoteaddr"]["port"],
+                    pid=pid,
+                    realuid=con["uids"][0],
+                    effectiveuid=con["uids"][1],
+                    saveduid=con["uids"][2],
+                    filesystemuid=con["uids"][3],
+                    when=datetime.now(),
+                )
+
+                self.session.add(phistory)
+                self.session.commit()
 
                 # For new processes
                 self.cp[cp_key] = datum
