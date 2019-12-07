@@ -58,6 +58,13 @@ sudo ./unoon
 
 You can pass a different interface name with `-device` flag to the `unoon` executable.
 
+Next, create the database directory and also the sqlite database.
+
+```sh
+sudo mkdir /var/lib/unoon
+sudo python3 ./desktop/udesktop/db.py
+```
+
 Start the frontend:
 
 ```sh
