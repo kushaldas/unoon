@@ -19,6 +19,7 @@ PROCESSTYPE = 1
 WHITETYPE = 2
 LOGSTYPE = 3
 
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 whitelist_file = "/var/lib/unoon/whitelist.txt"
 
 
@@ -33,6 +34,11 @@ def find_user(uid: int) -> str:
         return str(uid)
 
 
+def get_asset_path(file_name):
+    "Return the absolute path for requested asset"
+    return os.path.join(BASE_PATH, "assets", file_name)
+
+
 class TableWidget(QtWidgets.QTableWidget):
     def __init__(self, tabletype=PROCESSTYPE):
         super(TableWidget, self).__init__()
@@ -43,7 +49,7 @@ class TableWidget(QtWidgets.QTableWidget):
         self.setIconSize(QtCore.QSize(25, 25))
         self.menu = QtWidgets.QMenu()
         action = QtWidgets.QAction("Mark as Whitelist", self)
-        whitelisticon = QtGui.QIcon("./security_tick.png")
+        whitelisticon = QtGui.QIcon(get_asset_path("security_tick.png"))
         action.setIcon(whitelisticon)
         action.triggered.connect(lambda: self.rightClickSlot())
         self.menu.addAction(action)
@@ -74,10 +80,11 @@ class TableWidget(QtWidgets.QTableWidget):
             ]
         self.setHorizontalHeaderLabels(header_labels)
         self.setHorizontalHeaderItem(
-            0, QTableWidgetItem(QtGui.QIcon("terminal.png"), "Executable")
+            0,
+            QTableWidgetItem(QtGui.QIcon(get_asset_path("terminal.png")), "Executable"),
         )
         self.setHorizontalHeaderItem(
-            2, QTableWidgetItem(QtGui.QIcon("cloud_up.png"), "Remote")
+            2, QTableWidgetItem(QtGui.QIcon(get_asset_path("cloud_up.png")), "Remote")
         )
         header = self.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
@@ -132,7 +139,7 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.textbox.setPlainText(text)
 
         whitelistlargeicon = QtWidgets.QLabel()
-        whitepixmap = QtGui.QPixmap("security_tick_large.png")
+        whitepixmap = QtGui.QPixmap(get_asset_path("security_tick_large.png"))
         whitelistlargeicon.setPixmap(whitepixmap)
         whitelistlabel = QtWidgets.QLabel("List of Whitelisted commands")
         whitelistlabel.setStyleSheet(QWhiteListBannerCSS)
@@ -179,7 +186,7 @@ class NewConnectionDialog(QtWidgets.QDialog):
         super(NewConnectionDialog, self).__init__()
 
         self.setWindowTitle("Alert")
-        self.setWindowIcon(QtGui.QIcon("alert.png"))
+        self.setWindowIcon(QtGui.QIcon(get_asset_path("alert.png")))
 
         cmd_label = QtWidgets.QLabel(datum["Cmdline"])
         cmd_label.setStyleSheet("QLabel { font-weight: bold; font-size: 20px; }")
@@ -244,11 +251,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.setIconSize(QtCore.QSize(25, 25))
         self.tabs.setStyleSheet(QTAB)
 
-        normalicon = QtGui.QIcon("./magnify.png")
+        normalicon = QtGui.QIcon(get_asset_path("magnify.png"))
         self.tabs.addTab(self.pTable, normalicon, "Current Processes")
-        whitelisticon = QtGui.QIcon("./security_tick.png")
+        whitelisticon = QtGui.QIcon(get_asset_path("security_tick.png"))
         self.tabs.addTab(self.wTable, whitelisticon, "Whitelisted Processes")
-        logsicon = QtGui.QIcon("./logs.png")
+        logsicon = QtGui.QIcon(get_asset_path("logs.png"))
         self.tabs.addTab(self.logsTable, logsicon, "History")
         self.setCentralWidget(self.tabs)
 
