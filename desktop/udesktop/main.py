@@ -19,10 +19,15 @@ WHITETYPE = 2
 LOGSTYPE = 3
 
 
-def find_user(uid: int):
+def find_user(uid: int) -> str:
     "Find the username from the User ID"
-    st = pwd.getpwuid(uid)
-    return st.pw_name
+    try:
+        st = pwd.getpwuid(uid)
+        return st.pw_name
+    except KeyError:
+        # Fall back to uid if the uid is not present in the passwd
+        # file i.e. process is running inside a container
+        return str(uid)
 
 
 class TableWidget(QtWidgets.QTableWidget):
