@@ -5,11 +5,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import scoped_session
 import datetime
 
+DB_URL = "sqlite:////var/lib/unoon/unoon.db"
 
 BASE = declarative_base()
 
 
-class history(BASE):
+class Processhistory(BASE):
     "history of all processes"
     __tablename__ = "processhistory"
 
@@ -31,17 +32,18 @@ class history(BASE):
         return u"<ID: %d EXE: %s>" % (self.id, self.executable)
 
 
-def create_session(db_url, debug=False):
+def create_session(db_url=DB_URL, debug=False):
     engine = sa.create_engine(db_url, echo=debug)
     scopedsession = scoped_session(sessionmaker(bind=engine))
     return scopedsession
 
 
-def create_tables(url):
+def create_tables(url, debug=False):
     # Create an engine that stores data in the local directory
-    engine = sa.create_engine(url)
+    engine = sa.create_engine(url, echo=debug)
     BASE.metadata.create_all(engine)
 
 
-if __name__ == "___main___":
-    create_tables("sqlite:///var/lib/unoon/unoon.db")
+if __name__ == "__main__":
+    create_tables(DB_URL)
+    print("Database file created.")
