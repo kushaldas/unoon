@@ -2,6 +2,8 @@
 from PyQt5 import QtGui, QtWidgets, QtCore
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QTableWidgetItem
+
+import psutil
 from ucss import *
 from db import Processhistory, create_session
 import subprocess
@@ -37,6 +39,71 @@ def find_user(uid: int) -> str:
 def get_asset_path(file_name):
     "Return the absolute path for requested asset"
     return os.path.join(BASE_PATH, "assets", file_name)
+
+class AllProcessesWindow(QtWidgets.QWidget):
+    def __init__(self, data):
+        super(AllProcessesWindow, self).__init__()
+        self.setWindowTitle("Process Map")
+        self.tree = QtWidgets.QTreeView(self)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self.tree)
+        self.model = QtGui.QStandardItemModel()
+        self.model.setHorizontalHeaderLabels(
+            ["Name", "Process ID", "Parent ID", "TTY", "User", "CWD"]
+        )
+        self.tree.header().setDefaultSectionSize(180)
+
+        self.tree.header().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+
+        self.tree.setModel(self.model)
+        self.parse_data(data)
+        # When the user wants to see the processes, they should see in all expanded state
+        self.tree.expandAll()
+
+    def parse_data(self, data, root=None):
+        self.model.setRowCount(0)
+        if not root:
+            root = self.model.invisibleRootItem()
+        seen = {}
+
+        for value in data:
+            if value["ppid"] == 0:
+                parent = root
+            else:
+                pid = value["ppid"]
+                if pid not in seen:
+                    # TODO: Mark that parent is missing
+                    # Not sure why the parents are missing, orphan processes here
+                    parent = root
+                else:
+                    parent = seen[pid]
+            pid = value["pid"]
+            name = QtGui.QStandardItem(value["name"])
+            name.setToolTip(" ".join(value["cmdline"]))
+            name.setEditable(False)  # User should not be able to edit it
+            pid_item = QtGui.QStandardItem(str(pid))
+            pid_item.setEditable(False)
+            ppid_item = QtGui.QStandardItem(str(value["ppid"]))
+            ppid_item.setEditable(False)
+            terminal_item = QtGui.QStandardItem(value["terminal"])
+            terminal_item.setEditable(False)
+            username_item = QtGui.QStandardItem(value["username"])
+            username_item.setEditable(False)
+            cwd_item = QtGui.QStandardItem(value["cwd"])
+            cwd_item.setEditable(False)
+
+            parent.appendRow(
+                [
+                    name,
+                    pid_item,
+                    ppid_item,
+                    terminal_item,
+                    username_item,
+                    cwd_item,
+                ]
+            )
+            seen[pid] = parent.child(parent.rowCount() - 1)
+
 
 
 class TableWidget(QtWidgets.QTableWidget):
@@ -211,6 +278,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None, config={}):
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Unoon")
+
+        processMapAction = QtWidgets.QAction(QtGui.QIcon(get_asset_path("processes.png")), "Process Map", self)
+        processMapAction.triggered.connect(self.show_processmap)
+
+        toolbar = self.addToolBar("Mainbar")
+        toolbar.addAction(processMapAction)
+        self.processlist = []
+
 
         self.cl = redis.Redis(
             host=config["host"],
@@ -448,6 +523,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def exit_process(self):
         sys.exit(0)
+
+    def show_processmap(self):
+        """
+        We will take a state of current processes and show it via a window.
+        """
+        self.processlist = []
+        for p in psutil.process_iter(attrs=["name", "pid", "ppid", "exe", "cmdline", "cwd", "username", "terminal"]):
+            try:
+                self.processlist.append(p.info)
+            except Exception as e:
+                print("Exception for ", p, e)
+
+        self.processMapwindow = AllProcessesWindow(self.processlist)
+        self.processMapwindow.setGeometry(600, 50, 900, 650)
+        self.processMapwindow.show()
 
 
 def main():
