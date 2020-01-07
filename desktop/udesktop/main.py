@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 from PyQt5 import QtGui, QtWidgets, QtCore
-from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtWidgets import QTableWidgetItem
+
+
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+from PyQt5 import Qt
 
 import psutil
 from ucss import *
@@ -40,13 +44,31 @@ def get_asset_path(file_name):
     "Return the absolute path for requested asset"
     return os.path.join(BASE_PATH, "assets", file_name)
 
+
 class AllProcessesWindow(QtWidgets.QWidget):
-    def __init__(self, data):
+    def __init__(self):
         super(AllProcessesWindow, self).__init__()
+        self.data_store = {}
         self.setWindowTitle("Process Map")
         self.tree = QtWidgets.QTreeView(self)
+        self.splitter = QtWidgets.QSplitter(self)
+        self.splitter.setOrientation(QtCore.Qt.Vertical)
+
+        self.splitter.addWidget(self.tree)
+
+        # Now we will add an area to show the process details
+        self.plabel = QtWidgets.QLabel()
+        self.pix = QtGui.QPixmap(900, 150)
+        self.pix.fill(QtGui.QColor(255, 255, 255))
+        self.plabel.setPixmap(self.pix)
+        self.plabel.setMargin(0)
+
+        self.splitter.addWidget(self.plabel)
+        self.splitter.setSizes([500, 150])
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(self.tree)
+        layout.addWidget(self.splitter)
+        self.setGeometry(600, 50, 900, 650)
+
         self.model = QtGui.QStandardItemModel()
         self.model.setHorizontalHeaderLabels(
             ["Name", "Process ID", "Parent ID", "TTY", "User", "CWD"]
@@ -56,11 +78,115 @@ class AllProcessesWindow(QtWidgets.QWidget):
         self.tree.header().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
 
         self.tree.setModel(self.model)
-        self.parse_data(data)
+        self.capture_process_data()
+        self.parse_data()
         # When the user wants to see the processes, they should see in all expanded state
         self.tree.expandAll()
+        # self.draw_process()
+        # self.tree.clicked.connect(self.draw_process)
+        self.tree.selectionModel().selectionChanged.connect(self.draw_selection)
 
-    def parse_data(self, data, root=None):
+    def capture_process_data(self):
+        self.data = []
+        for p in psutil.process_iter(
+            attrs=[
+                "name",
+                "pid",
+                "ppid",
+                "exe",
+                "cmdline",
+                "cwd",
+                "username",
+                "terminal",
+                "create_time",
+                "connections",
+                "open_files",
+            ]
+        ):
+            try:
+                self.data.append(p.info)
+            except Exception as e:
+                print("Exception for ", p, e)
+
+    def draw_selection(self, a, b):
+        indexes = a.indexes()
+        pid_index = indexes[1]
+        self.draw_process(pid_index)
+
+    def draw_process(self, index):
+        text = str(index.data())
+        pid = index.siblingAtColumn(1)
+        data = self.data_store[int(pid.data())]
+
+        from pprint import pprint
+
+        pprint(data)
+
+        # TODO: calculate the final pixmap size
+
+        pix = QtGui.QPixmap(900, 150)
+        pix.fill(QtGui.QColor(255, 255, 255))
+        self.plabel.setPixmap(pix)
+
+        painter = QPainter(self.plabel.pixmap())
+
+        pen = QPen()
+        pen.setWidth(1)
+        pen.setColor(QColor("black"))
+        painter.setPen(pen)
+
+        font = QFont()
+        font.setFamily("Times")
+        # font.setBold(True)
+        font.setPointSize(20)
+        painter.setFont(font)
+
+        exe_icon = QPixmap(get_asset_path("exe_icon.png"))
+
+        # Draw the exe icon
+        painter.drawPixmap(0, 0, exe_icon)
+
+        # Write the name of the exe path
+        painter.drawText(50, 30, data["exe"])
+
+        font.setPointSize(14)
+        painter.setFont(font)
+
+        # user icon
+        user_icon = QPixmap(get_asset_path("user_icon.png"))
+
+        # Draw the user icon
+        painter.drawPixmap(12, 50, user_icon)
+        painter.drawText(50, 70, data["username"])
+
+        # cwd icon
+        cwd_icon = QPixmap(get_asset_path("cwd_icon.png"))
+
+        # Draw the cwd icon
+        painter.drawPixmap(240, 50, cwd_icon)
+        painter.drawText(280, 70, data["cwd"])
+
+        # terminal icon
+        terminal_icon = QPixmap(get_asset_path("terminal_icon.png"))
+
+        # Draw the terminal icon
+        painter.drawPixmap(12, 90, terminal_icon)
+        painter.drawText(50, 110, str(data["terminal"]))
+
+        # time icon
+        time_icon = QPixmap(get_asset_path("time_icon.png"))
+
+        date = datetime.fromtimestamp(data["create_time"])
+        # Draw the time icon
+        painter.drawPixmap(240, 90, time_icon)
+        painter.drawText(280, 110, date.strftime("%c"))
+
+        painter.end()
+
+    def parse_data(self, root=None):
+
+        data = self.data
+
         self.model.setRowCount(0)
         if not root:
             root = self.model.invisibleRootItem()
@@ -78,6 +204,10 @@ class AllProcessesWindow(QtWidgets.QWidget):
                 else:
                     parent = seen[pid]
             pid = value["pid"]
+
+            # store it
+            self.data_store[pid] = value
+
             name = QtGui.QStandardItem(value["name"])
             name.setToolTip(" ".join(value["cmdline"]))
             name.setEditable(False)  # User should not be able to edit it
@@ -93,17 +223,9 @@ class AllProcessesWindow(QtWidgets.QWidget):
             cwd_item.setEditable(False)
 
             parent.appendRow(
-                [
-                    name,
-                    pid_item,
-                    ppid_item,
-                    terminal_item,
-                    username_item,
-                    cwd_item,
-                ]
+                [name, pid_item, ppid_item, terminal_item, username_item, cwd_item,]
             )
             seen[pid] = parent.child(parent.rowCount() - 1)
-
 
 
 class TableWidget(QtWidgets.QTableWidget):
@@ -279,13 +401,14 @@ class MainWindow(QtWidgets.QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.setWindowTitle("Unoon")
 
-        processMapAction = QtWidgets.QAction(QtGui.QIcon(get_asset_path("processes.png")), "Process Map", self)
+        processMapAction = QtWidgets.QAction(
+            QtGui.QIcon(get_asset_path("processes.png")), "Process Map", self
+        )
         processMapAction.triggered.connect(self.show_processmap)
 
         toolbar = self.addToolBar("Mainbar")
         toolbar.addAction(processMapAction)
         self.processlist = []
-
 
         self.cl = redis.Redis(
             host=config["host"],
@@ -528,15 +651,8 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         We will take a state of current processes and show it via a window.
         """
-        self.processlist = []
-        for p in psutil.process_iter(attrs=["name", "pid", "ppid", "exe", "cmdline", "cwd", "username", "terminal"]):
-            try:
-                self.processlist.append(p.info)
-            except Exception as e:
-                print("Exception for ", p, e)
 
-        self.processMapwindow = AllProcessesWindow(self.processlist)
-        self.processMapwindow.setGeometry(600, 50, 900, 650)
+        self.processMapwindow = AllProcessesWindow()
         self.processMapwindow.show()
 
 
