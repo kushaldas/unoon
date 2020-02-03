@@ -374,7 +374,7 @@ class NewConnectionDialog(QtWidgets.QDialog):
     def __init__(self, datum, remote, pid, user):
         super(NewConnectionDialog, self).__init__()
 
-        self.setWindowTitle("Alert")
+        self.setWindowTitle("Network Alert")
         self.setWindowIcon(QtGui.QIcon(get_asset_path("alert.png")))
 
         cmd_label = QtWidgets.QLabel(datum["Cmdline"])
