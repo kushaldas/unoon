@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"time"
 
 	"github.com/go-redis/redis/v7"
 	"github.com/kushaldas/unoon/pkg/localprocess"
@@ -36,11 +35,11 @@ func main() {
 		DB:       viper.GetInt("db"),
 	})
 
-	for {
-		time.Sleep(2 * time.Second)
-		allps := localprocess.ProcessMap()
-		// Push all processes in one go
-		localprocess.PushProcessDB(allps, redisdb)
-	}
-
+	// for {
+	// 	time.Sleep(30 * time.Second)
+	// 	allps := localprocess.ProcessMap()
+	// 	// Push all processes in one go
+	// 	localprocess.PushProcessDB(allps, redisdb)
+	// }
+	localprocess.Read(redisdb)
 }
