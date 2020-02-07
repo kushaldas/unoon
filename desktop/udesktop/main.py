@@ -296,6 +296,7 @@ class TableWidget(QtWidgets.QTableWidget):
 
 class DataThread(QThread):
     signal = pyqtSignal("PyQt_PyObject")
+    deletepid = pyqtSignal("PyQt_PyObject")
 
     def __init__(self, config={}):
         QThread.__init__(self)
@@ -305,20 +306,43 @@ class DataThread(QThread):
             password=config["password"],
             db=config["db"],
         )
+        # To store pids with any network connection
+        self.pids = {}
+        self.pid = str(os.getpid())
 
     # run method gets called when we start the thread
     def run(self):
         while True:
             data = self.cl.blpop("background")
             server_data = json.loads(data[1])
-            #pprint(server_data)
+            pid = str(server_data["pid"])
+            # skip the desktop application
+            if self.pid == pid:
+                continue
             if server_data["record_type"] == "connect":
                 try:
-                    p = psutil.Process(int(server_data["pid"]))
+                    p = psutil.Process(int(pid))
+                    self.pids[pid] = True
+
                     self.signal.emit(p)
-                except:
-                    print("Missing process")
-            # self.signal.emit(data)
+                except Exception as e:
+                    print("Missing process in first search", e)
+            elif server_data["record_type"] == "process_exit":
+                # The exit or exit_group syscall can happen when a process is exiting
+                # or when a thread inside of the process is exiting.
+                # In the second case, the process is still alive.
+
+                if not pid in self.pids:
+                    continue
+                try:
+                    p = psutil.Process(int(server_data["pid"]))
+                    p.wait()
+                    del self.pids[pid]
+                    self.deletepid.emit(pid)
+                except Exception as e:
+                    # Means the pid properly exited
+                    del self.pids[pid]
+                    self.deletepid.emit(pid)
 
 
 class WhitelistDialog(QtWidgets.QDialog):
@@ -492,6 +516,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tr = DataThread(config)
         self.tr.signal.connect(self.update_cp)
+        self.tr.deletepid.connect(self.delete_pid)
         self.tr.start()
 
     def showcurrenttab(self):
@@ -518,14 +543,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.whitelist_dialog.newwhitelist.connect(self.update_whitelist)
         self.whitelist_dialog.exec_()
 
+    def delete_pid(self, pid: str):
+        "For the pid which is already gone"
+        delkeys = []
+        for key in self.cp.keys():
+            key_pid = key.split(":")[1]
+            if key_pid != pid:
+                continue
+
+            delkeys.append(key)
+
+            # Check in the normal process table
+            items = self.pTable.findItems(key, QtCore.Qt.MatchFixedString)
+            if items:
+                item = items[0]
+                self.pTable.removeRow(item.row())
+                continue
+
+                # Check in the whitelisted process table
+            items = self.wTable.findItems(key, QtCore.Qt.MatchFixedString)
+            if items:
+                item = items[0]
+                self.wTable.removeRow(item.row())
+                continue
+
+        # Clean the local keys from current processes+network connections
+        for key in delkeys:
+            del self.cp[key]
+
     def update_cp(self, result: psutil.Process):
-        # data is the list of dicts with currentProcess struct
-        # data = {}
-        # data = json.loads(result[1])
-        # pids = data.keys()
+        "For a given process, update the widgets"
         current_keys = {}
         # for pid in pids:
-            # Skip desktop application itself
+        # Skip desktop application itself
         try:
             datum = result
             pid = result.pid
@@ -536,8 +586,8 @@ class MainWindow(QtWidgets.QMainWindow):
             except IndexError as e:
                 print(e)
                 print(datum.cmdline())
+                return
 
-            
             for con in datum.connections():
                 localcon = con.laddr
                 if localcon.ip == "224.0.0.251":
@@ -559,7 +609,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 remote = "{}:{}".format(remote_host, remotecon.port)
 
-                # cp_key is the unique key to identify all unique connections from inside of a process to a remote  
+                # cp_key is the unique key to identify all unique connections from inside of a process to a remote
                 cp_key = "pid:{0}:{1}:{2}".format(str(pid), ac, remote)
                 # record the key
                 current_keys[cp_key] = True
@@ -607,7 +657,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 if whitelist_flag:
                     continue
-                
+
                 self.update_processtable(
                     self.pTable, datum, con, local, remote, pid, ac, cp_key
                 )

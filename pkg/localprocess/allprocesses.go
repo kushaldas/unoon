@@ -243,7 +243,7 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 			if data["syscall"] == "connect" && data["result"] == "success" {
 				localrecords[data["sequence"]] = data["pid"]
 			}
-			if data["syscall"] == "exit" {
+			if data["syscall"] == "exit_group" {
 				processData := make(map[string]string, 4)
 				processData["pid"] = data["pid"]
 				processData["record_type"] = "process_exit"
