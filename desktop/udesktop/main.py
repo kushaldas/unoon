@@ -296,6 +296,7 @@ class TableWidget(QtWidgets.QTableWidget):
 
 class DataThread(QThread):
     signal = pyqtSignal("PyQt_PyObject")
+    deletepid = pyqtSignal("PyQt_PyObject")
 
     def __init__(self, config={}):
         QThread.__init__(self)
@@ -305,12 +306,43 @@ class DataThread(QThread):
             password=config["password"],
             db=config["db"],
         )
+        # To store pids with any network connection
+        self.pids = {}
+        self.pid = str(os.getpid())
 
     # run method gets called when we start the thread
     def run(self):
         while True:
-            data = self.cl.blpop("currentprocesses")
-            self.signal.emit(data)
+            data = self.cl.blpop("background")
+            server_data = json.loads(data[1])
+            pid = str(server_data["pid"])
+            # skip the desktop application
+            if self.pid == pid:
+                continue
+            if server_data["record_type"] == "connect":
+                try:
+                    p = psutil.Process(int(pid))
+                    self.pids[pid] = True
+
+                    self.signal.emit(p)
+                except Exception as e:
+                    print("Missing process in first search", e)
+            elif server_data["record_type"] == "process_exit":
+                # The exit or exit_group syscall can happen when a process is exiting
+                # or when a thread inside of the process is exiting.
+                # In the second case, the process is still alive.
+
+                if not pid in self.pids:
+                    continue
+                try:
+                    p = psutil.Process(int(server_data["pid"]))
+                    p.wait()
+                    del self.pids[pid]
+                    self.deletepid.emit(pid)
+                except Exception as e:
+                    # Means the pid properly exited
+                    del self.pids[pid]
+                    self.deletepid.emit(pid)
 
 
 class WhitelistDialog(QtWidgets.QDialog):
@@ -377,13 +409,13 @@ class NewConnectionDialog(QtWidgets.QDialog):
         self.setWindowTitle("Network Alert")
         self.setWindowIcon(QtGui.QIcon(get_asset_path("alert.png")))
 
-        cmd_label = QtWidgets.QLabel(datum["Cmdline"])
+        cmd_label = QtWidgets.QLabel(" ".join(datum.cmdline()))
         cmd_label.setStyleSheet("QLabel { font-weight: bold; font-size: 20px; }")
         cmd_label.setWordWrap(True)
         remote_label = QtWidgets.QLabel(remote)
         pid_label = QtWidgets.QLabel("PID: {}".format(pid))
         user_label = QtWidgets.QLabel("User: {}".format(user))
-        cwd_label = QtWidgets.QLabel("Directory: {}".format(datum["Cwd"]))
+        cwd_label = QtWidgets.QLabel("Directory: {}".format(datum.cwd()))
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(cmd_label)
@@ -484,6 +516,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tr = DataThread(config)
         self.tr.signal.connect(self.update_cp)
+        self.tr.deletepid.connect(self.delete_pid)
         self.tr.start()
 
     def showcurrenttab(self):
@@ -510,35 +543,74 @@ class MainWindow(QtWidgets.QMainWindow):
         self.whitelist_dialog.newwhitelist.connect(self.update_whitelist)
         self.whitelist_dialog.exec_()
 
-    def update_cp(self, result):
-        # data is the list of dicts with currentProcess struct
-        data = {}
-        data = json.loads(result[1])
-        pids = data.keys()
-        current_keys = {}
-        for pid in pids:
-            # Skip desktop application itself
-            if str(pid) == self.pid:
+    def delete_pid(self, pid: str):
+        "For the pid which is already gone"
+        delkeys = []
+        for key in self.cp.keys():
+            key_pid = key.split(":")[1]
+            if key_pid != pid:
                 continue
-            datum = data[pid]
-            ac = datum["Cmdline"].split(" ")[0]
-            # print(ac)
-            for con in datum["Connections"]:
-                localcon = con["localaddr"]
 
-                local = "{}:{}".format(localcon["ip"], localcon["port"])
-                remotecon = con["remoteaddr"]
+            delkeys.append(key)
+
+            # Check in the normal process table
+            items = self.pTable.findItems(key, QtCore.Qt.MatchFixedString)
+            if items:
+                item = items[0]
+                self.pTable.removeRow(item.row())
+                continue
+
+                # Check in the whitelisted process table
+            items = self.wTable.findItems(key, QtCore.Qt.MatchFixedString)
+            if items:
+                item = items[0]
+                self.wTable.removeRow(item.row())
+                continue
+
+        # Clean the local keys from current processes+network connections
+        for key in delkeys:
+            del self.cp[key]
+
+    def update_cp(self, result: psutil.Process):
+        "For a given process, update the widgets"
+        current_keys = {}
+        # for pid in pids:
+        # Skip desktop application itself
+        try:
+            datum = result
+            pid = result.pid
+            if str(pid) == self.pid:
+                return
+            try:
+                ac = datum.cmdline()[0]
+            except IndexError as e:
+                print(e)
+                print(datum.cmdline())
+                return
+
+            for con in datum.connections():
+                localcon = con.laddr
+                if localcon.ip == "224.0.0.251":
+                    return
+                local = "{}:{}".format(localcon.ip, localcon.port)
+                remotecon = con.raddr
+
+                # TODO: make sure we still show the listen calls
+                if not remotecon:
+                    return
 
                 # Find the hostname for the IP
-                remote_ip = remotecon["ip"]
+                remote_ip = remotecon.ip
                 remote_host_set = self.cl.smembers("ip:{}".format(remote_ip))
                 if remote_host_set:
                     remote_host = list(remote_host_set)[0].decode("utf-8")
                 else:
                     remote_host = remote_ip
 
-                remote = "{}:{}".format(remote_host, remotecon["port"])
-                cp_key = "{0}:{1}:{2}".format(ac, pid, remote)
+                remote = "{}:{}".format(remote_host, remotecon.port)
+
+                # cp_key is the unique key to identify all unique connections from inside of a process to a remote
+                cp_key = "pid:{0}:{1}:{2}".format(str(pid), ac, remote)
                 # record the key
                 current_keys[cp_key] = True
                 if cp_key in self.cp:
@@ -556,7 +628,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 # Display popup
                 if not self.first_run and cp_key not in self.cp and not whitelist_flag:
-                    user = find_user(con["uids"][0])
+                    user = find_user(datum.uids().real)
                     d = NewConnectionDialog(datum, remote, pid, user)
                     self.new_connection_dialogs.append(d)
                     # Store for the runtime logs
@@ -565,15 +637,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 phistory = Processhistory(
                     executable=ac.split()[0],
                     command=ac,
-                    local_ip=con["localaddr"]["ip"],
-                    local_port=con["localaddr"]["port"],
+                    local_ip=con.laddr.ip,
+                    local_port=con.laddr.port,
                     remote_ip=remote_host,
-                    remote_port=con["remoteaddr"]["port"],
+                    remote_port=con.raddr.port,
                     pid=pid,
-                    realuid=con["uids"][0],
-                    effectiveuid=con["uids"][1],
-                    saveduid=con["uids"][2],
-                    filesystemuid=con["uids"][3],
+                    realuid=datum.uids().real,
+                    effectiveuid=datum.uids().effective,
+                    saveduid=datum.uids().saved,
+                    filesystemuid=datum.uids().saved,
                     when=datetime.now(),
                 )
 
@@ -592,9 +664,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.update_processtable(
                     self.logsTable, datum, con, local, remote, pid, ac, cp_key, True
                 )
-
+        except (FileNotFoundError, psutil.NoSuchProcess) as e:
+            # TODO: do someting here
+            return
         delkeys = []
         for key in self.cp.keys():
+            key_pid = key.split(":")[1]
+            if key_pid != str(pid):
+                continue
             if key not in current_keys:
                 # means this connection is no longer there
                 # Add to the list of keys to be deleted later
@@ -624,15 +701,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self, table, datum, con, local, remote, pid, ac, cp_key, history=False
     ):
         "Updates the given table with the new data in a new row"
+        print(f"PID: {pid}")
         num = table.rowCount() + 1
         table.setRowCount(num)
-        table.setItem(num - 1, 0, QTableWidgetItem(ac))
-        table.item(num - 1, 0).setToolTip(datum["Cmdline"])
+        table.setItem(num - 1, 0, QTableWidgetItem(ac.split()[0]))
+        table.item(num - 1, 0).setToolTip(ac)
         table.setItem(num - 1, 1, QTableWidgetItem(local))
         table.setItem(num - 1, 2, QTableWidgetItem(remote))
-        table.setItem(num - 1, 3, QTableWidgetItem(con["status"]))
-        table.setItem(num - 1, 4, QTableWidgetItem(pid))
-        user = find_user(con["uids"][0])
+        table.setItem(num - 1, 3, QTableWidgetItem(con.status))
+        table.setItem(num - 1, 4, QTableWidgetItem(str(pid)))
+        user = find_user(datum.uids().real)
         table.setItem(num - 1, 5, QTableWidgetItem(user))
 
         if history:
@@ -671,7 +749,7 @@ def main():
     # first clean all old data
     r = redis.Redis(host=host, port=port, password=config["password"], db=config["db"])
     # TODO: In future we want a separate process to log details to DB
-    r.delete("currentprocesses")
+    r.delete("background")
     app = QtWidgets.QApplication(sys.argv)
     form = MainWindow(config=config)
     form.show()

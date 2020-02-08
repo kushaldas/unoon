@@ -1,6 +1,6 @@
 # Unoon
 
-Unoon is a desktop tool to monitor processes with network connections.
+Unoon is a desktop tool Intrusion detection tool.
 This is in the very early stage of development.
 
 ## License: GPLv3+
@@ -23,7 +23,7 @@ sudo systemctl start redis
 
 Install python dependencies:
 
-In fedora: `sudo dnf install python3-pyqt5 python3-redis python3-yaml`
+In Fedora: `sudo dnf install python3-pyqt5 python3-redis python3-yaml python3-psutil audit`
 
 ### Build
 
@@ -32,6 +32,44 @@ Build the go portion with:
 ```sh
 go build github.com/kushaldas/unoon/cmd/unoon
 ```
+
+### Setting up audit rules
+
+Put the following in the `/etc/audit/rules.d/audit.rules` file.
+
+```
+## First rule - delete all
+-D
+
+## Increase the buffers to survive stress events.
+## Make this bigger for busy systems
+-b 8192
+
+## This determine how long to wait in burst of events
+--backlog_wait_time 0
+
+## Set failure mode to syslog
+-f 1
+
+-a exit,always -F arch=b64 -S connect,listen,bind -k unoon_network
+-a always,exit -F arch=b64 -S exit,exit_group -k unoon_exit
+```
+
+Remember as this tool is in the development stage, we will keep changing and adding a lot more rules in the coming days.
+
+In future we may add rules in a different way, but for now, we will use `auditd` itself.
+
+```bash
+$ sudo systemctl start auditd
+$ sudo systemctl status auditd
+$ sudo systemctl stop auditd
+$ sudo auditctl -l
+-a always,exit -F arch=b64 -S connect,bind,listen -F key=unoon_network
+-a always,exit -F arch=b64 -S exit,exit_group -F key=unoon_exit
+
+```
+
+The last command should show you output as shown above.
 
 ### Redis server configuration
 
