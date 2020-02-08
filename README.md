@@ -69,6 +69,14 @@ $ sudo auditctl -l
 
 ```
 
+On Fedora you may have to use the `service` command.
+
+```bash
+$ sudo service auditd restart
+$ sudo service auditd stop
+```
+
+
 The last command should show you output as shown above.
 
 ### Redis server configuration
