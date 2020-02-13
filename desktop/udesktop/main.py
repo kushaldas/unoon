@@ -297,6 +297,7 @@ class TableWidget(QtWidgets.QTableWidget):
 class DataThread(QThread):
     signal = pyqtSignal("PyQt_PyObject")
     deletepid = pyqtSignal("PyQt_PyObject")
+    path_signal = pyqtSignal("PyQt_PyObject")
 
     def __init__(self, config={}):
         QThread.__init__(self)
@@ -315,11 +316,12 @@ class DataThread(QThread):
         while True:
             data = self.cl.blpop("background")
             server_data = json.loads(data[1])
-            pid = str(server_data["pid"])
-            # skip the desktop application
-            if self.pid == pid:
-                continue
+
             if server_data["record_type"] == "connect":
+                pid = str(server_data["pid"])
+                # skip the desktop application
+                if self.pid == pid:
+                    continue
                 try:
                     p = psutil.Process(int(pid))
                     self.pids[pid] = True
@@ -343,6 +345,12 @@ class DataThread(QThread):
                     # Means the pid properly exited
                     del self.pids[pid]
                     self.deletepid.emit(pid)
+            elif server_data["record_type"] == "path":
+                pprint(server_data)
+                # TODO: verify if this is safe or not.
+                if server_data["name"] == "/var/run/nscd/socket":
+                    continue
+                self.path_signal.emit(server_data)
 
 
 class WhitelistDialog(QtWidgets.QDialog):
@@ -400,6 +408,24 @@ class WhitelistDialog(QtWidgets.QDialog):
 
     def cancel(self):
         self.close()
+
+
+# TODO: Looks really bad
+class FileAccessDialog(QtWidgets.QDialog):
+    def __init__(self, datum):
+        super(FileAccessDialog, self).__init__()
+
+        self.setWindowTitle("File acccessed")
+        cmd_label = QtWidgets.QLabel(datum["proctitle"])
+        filepath = QtWidgets.QLabel(datum["name"])
+        exe_label = QtWidgets.QLabel(datum["exe"])
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(cmd_label)
+        layout.addWidget(filepath)
+        layout.addWidget(exe_label)
+        self.setLayout(layout)
+        self.show()
 
 
 class NewConnectionDialog(QtWidgets.QDialog):
@@ -512,11 +538,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.first_run = True
         self.new_connection_dialogs = []
+        self.fileaccess_dialogs = []
         self.cp = {}
 
         self.tr = DataThread(config)
         self.tr.signal.connect(self.update_cp)
         self.tr.deletepid.connect(self.delete_pid)
+        self.tr.path_signal.connect(self.show_path_dialog)
         self.tr.start()
 
     def showcurrenttab(self):
@@ -536,6 +564,10 @@ class MainWindow(QtWidgets.QMainWindow):
             cmd = cmd.strip()
             if cmd:
                 self.whitelist.append(cmd)
+
+    def show_path_dialog(self, data):
+        d = FileAccessDialog(data)
+        self.fileaccess_dialogs.append(d)
 
     def show_whitelist(self):
         "Updates the current whitelist commands"

@@ -41,6 +41,9 @@ func enableLogger() {
 	})
 }
 
+// AuditEntry contains details about audit records
+type AuditEntry map[string]string
+
 // ProcessDetails stores a currently running process with network connections.
 type ProcessDetails struct {
 	Name        string
@@ -216,7 +219,10 @@ func Read(redisdb *redis.Client) error {
 
 func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 
+	// This will store network records
 	localrecords := make(map[string]string, 10)
+	// This will record CWD values for similar records
+	filesandcommands := make(map[string]AuditEntry, 1)
 	fmt.Println("starting")
 	for {
 		rawEvent, err := r.Receive(false)
@@ -242,14 +248,52 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 		if recordType == "SYSCALL" {
 			if data["syscall"] == "connect" && data["result"] == "success" {
 				localrecords[data["sequence"]] = data["pid"]
-			}
-			if data["syscall"] == "exit_group" {
+			} else if data["syscall"] == "exit_group" {
 				processData := make(map[string]string, 4)
 				processData["pid"] = data["pid"]
 				processData["record_type"] = "process_exit"
 				jsonData, _ := json.Marshal(processData)
 				PushToDesktop(jsonData, redisdb)
 
+			} else if data["syscall"] == "openat" || data["syscall"] == "open" {
+				// This is for the syscall related to recordType PATH
+				// This call records the actual process which accessed the file/path.
+				//
+				if val, ok := filesandcommands[data["sequence"]]; ok {
+					// Means we already have data
+					val["exe"] = data["exe"]
+					val["auid"] = data["auid"]
+					val["uid"] = data["uid"]
+					val["gid"] = data["gid"]
+					val["euid"] = data["euid"]
+					val["suid"] = data["suid"]
+					val["fsuid"] = data["fsuid"]
+					val["egid"] = data["egid"]
+					val["sgid"] = data["sgid"]
+					val["fsgid"] = data["fsgid"]
+					val["pid"] = data["pid"]
+					val["ppid"] = data["ppid"]
+					val["record_type"] = "path"
+					filesandcommands[data["sequence"]] = val
+				} else {
+					// Here the record is not there already
+					localData := make(AuditEntry, 1)
+					localData["exe"] = data["exe"]
+					localData["auid"] = data["auid"]
+					localData["uid"] = data["uid"]
+					localData["gid"] = data["gid"]
+					localData["euid"] = data["euid"]
+					localData["suid"] = data["suid"]
+					localData["fsuid"] = data["fsuid"]
+					localData["egid"] = data["egid"]
+					localData["sgid"] = data["sgid"]
+					localData["fsgid"] = data["fsgid"]
+					localData["pid"] = data["pid"]
+					localData["ppid"] = data["ppid"]
+					localData["record_type"] = "path"
+					filesandcommands[data["sequence"]] = localData
+
+				}
 			}
 		} else if recordType == "SOCKADDR" {
 
@@ -263,6 +307,57 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 				delete(localrecords, data["sequence"].(string))
 			}
 
+		} else if recordType == "CWD" {
+			if val, ok := filesandcommands[data["sequence"]]; ok {
+				// Means we already have data
+				val["cwd"] = data["cwd"]
+				filesandcommands[data["sequence"]] = val
+			} else {
+				// Here the record is not there already
+				localData := make(AuditEntry, 1)
+				localData["cwd"] = data["cwd"]
+				filesandcommands[data["sequence"]] = localData
+
+			}
+		} else if recordType == "PATH" {
+			if val, ok := filesandcommands[data["sequence"]]; ok {
+				// Means we already have data
+				val["name"] = data["name"]
+				//val["record_type"] = "path"
+				filesandcommands[data["sequence"]] = val
+			} else {
+				// Here the record is not there already
+				localData := make(AuditEntry, 1)
+				localData["name"] = data["name"]
+				//localData["record_type"] = "path"
+				filesandcommands[data["sequence"]] = localData
+
+			}
+		} else if recordType == "EOE" {
+			if val, ok := filesandcommands[data["sequence"]]; ok {
+				// If no exe mentioned here, means it is part of a different record,
+				// not any file access record.
+				if _, ok := val["exe"]; ok {
+					jsonData, _ := json.MarshalIndent(val, "", "  ")
+					// fmt.Println(val)
+					PushToDesktop(jsonData, redisdb)
+					// Now we have to clean up the localrecords for the sequence
+					delete(filesandcommands, data["sequence"])
+				}
+			}
+		} else if recordType == "PROCTITLE" {
+
+			if val, ok := filesandcommands[data["sequence"]]; ok {
+				// Means we already have data
+				val["proctitle"] = data["proctitle"]
+				filesandcommands[data["sequence"]] = val
+			} else {
+				// Here the record is not there already
+				localData := make(AuditEntry, 1)
+				localData["proctitle"] = data["proctitle"]
+				filesandcommands[data["sequence"]] = localData
+
+			}
 		}
 
 	}
