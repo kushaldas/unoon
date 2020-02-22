@@ -219,8 +219,6 @@ func Read(redisdb *redis.Client) error {
 
 func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 
-	// This will store network records
-	localrecords := make(map[string]string, 10)
 	// This will record CWD values for similar records
 	filesandcommands := make(map[string]AuditEntry, 1)
 	fmt.Println("starting")
@@ -247,14 +245,17 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 		recordType := msg.RecordType.String()
 		if recordType == "SYSCALL" {
 			if data["syscall"] == "connect" && data["result"] == "success" {
-				localrecords[data["sequence"]] = data["pid"]
-			} else if data["syscall"] == "exit_group" {
-				processData := make(map[string]string, 4)
-				processData["pid"] = data["pid"]
-				processData["record_type"] = "process_exit"
-				jsonData, _ := json.Marshal(processData)
-				PushToDesktop(jsonData, redisdb)
 
+				if val, ok := filesandcommands[data["sequence"]]; ok {
+					val["exe"] = data["exe"]
+					val["pid"] = data["pid"]
+					filesandcommands[data["sequence"]] = val
+				} else {
+					localData := make(AuditEntry, 1)
+					localData["exe"] = data["exe"]
+					localData["pid"] = data["pid"]
+					filesandcommands[data["sequence"]] = localData
+				}
 			} else if data["syscall"] == "openat" || data["syscall"] == "open" {
 				// This is for the syscall related to recordType PATH
 				// This call records the actual process which accessed the file/path.
@@ -297,14 +298,22 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 			}
 		} else if recordType == "SOCKADDR" {
 
-			if val, ok := localrecords[data["sequence"]]; ok {
-				data := msg.ToMapStr()
-				data["pid"] = val
-				data["record_type"] = "connect"
-				jsonData, _ := json.MarshalIndent(data, "", "  ")
-				PushToDesktop(jsonData, redisdb)
-				// Now we have to clean up the localrecords for the sequence
-				delete(localrecords, data["sequence"].(string))
+			if val, ok := filesandcommands[data["sequence"]]; ok {
+				val["family"] = data["family"]
+				val["port"] = data["port"]
+				val["addr"] = data["addr"]
+				val["record_type"] = "connect"
+				filesandcommands[data["sequence"]] = val
+
+			} else {
+				// Here the record is not there already
+				localData := make(AuditEntry, 1)
+				localData["family"] = data["family"]
+				localData["port"] = data["port"]
+				localData["addr"] = data["addr"]
+				localData["record_type"] = "connect"
+				filesandcommands[data["sequence"]] = localData
+
 			}
 
 		} else if recordType == "CWD" {
