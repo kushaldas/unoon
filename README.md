@@ -23,7 +23,7 @@ sudo systemctl start redis
 
 Install python dependencies:
 
-In Fedora: `sudo dnf install python3-pyqt5 python3-redis python3-yaml python3-psutil audit`
+In Fedora: `sudo dnf install python3-qt5 python3-redis python3-yaml python3-psutil audit`
 
 ### Build
 
