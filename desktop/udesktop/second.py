@@ -19,6 +19,7 @@ import sys
 import redis
 import json
 import pwd
+import base64
 from datetime import datetime
 from pprint import pprint
 import yaml
@@ -264,10 +265,14 @@ class UnoonFileItem(QFrame):
             margin: 10px;
     """
 
-    def __init__(self, parent=None, path="", process=""):
+    def __init__(
+        self, parent=None, path="", process="", pid="", uniquehash="",
+    ):
         super(QWidget, self).__init__(parent)
         self.setObjectName("unoonFileItem")
         self.typename = "FileFilter"
+        self.uniquehash = uniquehash
+        self.usage = 1
         self.mainlayout = QVBoxLayout()
         datalayout = QHBoxLayout()
         self.title_label = QLabel("")
@@ -284,6 +289,9 @@ class UnoonFileItem(QFrame):
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
         self.setStyleSheet(self.CSS)
         self.setMinimumSize(QSize(200, 130))
+
+    def increaseUsage(self):
+        self.usage += 1
 
 
 class UnoonNetworkItem(QFrame):
@@ -322,11 +330,27 @@ class UnoonNetworkItem(QFrame):
             }
     """
 
-    def __init__(self, parent=None, address="", process="", cwd="", whitelisted=False):
+    def __init__(
+        self,
+        parent=None,
+        address="",
+        process="",
+        cwd="",
+        whitelisted=False,
+        pid="",
+        uniquehash="",
+    ):
         super(QWidget, self).__init__(parent)
         self.setObjectName("unoonNetworkItem")
         self.setStyleSheet(self.CSS)
         self.typename = "NormalNetworkFilter"
+
+        self.process = process
+        self.address = address
+
+        # We will update the widget based on this hash
+        self.uniquehash = uniquehash
+        self.usage = 1
         if whitelisted:
             self.setStyleSheet(self.CSS_WHITELIST)
             self.typename = "WhitelistFilter"
@@ -336,9 +360,11 @@ class UnoonNetworkItem(QFrame):
         icon = QtGui.QPixmap(get_asset_path("networkicon.png"))
         self.title_label.setPixmap(icon)
         self.title_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        text = QLabel(f"{address}\n\nAccessed by: {process}")
+        self.processLabel = QLabel(
+            f"{self.address}\n\nAccessed by: {process}  Usage: {self.usage}"
+        )
         datalayout.addWidget(self.title_label)
-        datalayout.addWidget(text)
+        datalayout.addWidget(self.processLabel)
         row = QWidget()
         row.setLayout(datalayout)
         self.mainlayout.addWidget(row)
@@ -363,10 +389,20 @@ class UnoonNetworkItem(QFrame):
         self.setLayout(self.mainlayout)
         self.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
 
+    def increaseUsage(self):
+        self.usage += 1
+        self.processLabel.setText(
+            f"{self.address}\n\nAccessed by: {self.process}  Usage: {self.usage}"
+        )
+
 
 class MainWindow(QtWidgets.QMainWindow):
     CSS = """
             background-color: rgb(255,255,255);
+            QScrollArea {
+                border: none;
+                border-radius: 10px;
+            }
     """
 
     def __init__(self, parent=None, config={}):
@@ -375,6 +411,7 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar = self.addToolBar("Mainbar")
         self.processlist = []
         self.unoonitems = []
+        self.unoonhashes = {}
         self.viewFilter = {
             "FileFilter": True,
             "WhitelistFilter": True,
@@ -389,8 +426,6 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.pid = str(os.getpid())
         self.session = create_session()
-
-        self.setStyleSheet(self.CSS)
 
         # To store all alerts in runtime only
         # TODO: In future store this in sqlite
@@ -414,15 +449,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # The scroll area
         self.scrollarea = QScrollArea()
+        self.scrollarea.setObjectName("scrollarea")
 
         self.widget_store_layout = QVBoxLayout()
         self.widget_store = QWidget()
+        self.widget_store.setObjectName("widget_store")
         self.widget_store.setLayout(self.widget_store_layout)
 
         self.widget_store_layout.setSpacing(0)
         self.widget_store.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        self.scrollarea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        # self.scrollarea.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.scrollarea.setWidget(self.widget_store)
         self.scrollarea.setWidgetResizable(True)
 
@@ -443,20 +480,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tabs.addTab(mainwidget, "Notifications")
         self.setCentralWidget(self.tabs)
-
-        un = UnoonFileItem(
-            path="/home/kdas/gocode/src/github.com/kushaldas/unoon",
-            process="/usr/bin/hello",
-        )
-        self.addUnoonItem(un)
-
-        un2 = UnoonNetworkItem(address="kushaldas.in:443", process="/usr/bin/wget")
-        self.addUnoonItem(un2)
-
-        un3 = UnoonNetworkItem(
-            address="freedom.press:443", process="/usr/bin/nmap", whitelisted=True
-        )
-        self.addUnoonItem(un3)
 
         exitAction = QtWidgets.QAction("E&xit", self)
         exitAction.triggered.connect(self.exit_process)
@@ -486,13 +509,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tr.signal.connect(self.update_cp)
         # self.tr.path_signal.connect(self.show_path_dialog)
         self.tr.start()
+        self.setStyleSheet(self.CSS)
 
-    def addUnoonItem(self, item):
+    def addUnoonItem(self, item, uniquehash):
         "Adds the item to the view and also the internal list"
+
+        # if the hash exists, then get it and then update it
+        if uniquehash in self.unoonhashes:
+            item = self.unoonhashes[uniquehash]
+            # First remove from view
+            self.widget_store_layout.removeWidget(item)
+            # Now increase the usage
+            item.increaseUsage()
+            # Now add back to the view at the end
+            self.widget_store_layout.addWidget(item)
+            # Update in the hashtable
+            self.unoonhashes[uniquehash] = item
+            return
+
+        self.unoonhashes[uniquehash] = item
         if not self.viewFilter[item.typename]:
             item.hide()
         self.widget_store_layout.addWidget(item)
-        self.unoonitems.append(item)
 
     def showcurrenttab(self):
         self.tabs.setCurrentIndex(0)
@@ -524,7 +562,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def updateUnoonView(self, data: Dict):
         self.viewFilter = data
         names = [k for k, v in data.items() if v]
-        for item in self.unoonitems:
+        for item in self.unoonhashes.values():
             if item.typename not in names:
                 item.hide()
             else:
@@ -550,25 +588,35 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 whitelist_flag = False
                 exe = result["exe"]
+                proctitle = result["proctitle"]
 
                 # Now find if this is whitelisted
                 for cmd in self.whitelist:
                     # The following is True for whitelisted commands
-                    if exe == cmd:
+                    if exe.startswith(cmd):
                         whitelist_flag = True
                         break
 
+                pid = ""
+                line = f"{pid}:{remote}:{proctitle}"
+                uniquehash = base64.encodebytes(line.encode("utf-8"))
                 # Now create the widget
                 item = UnoonNetworkItem(
-                    address=remote, process=exe, whitelisted=whitelist_flag
+                    address=remote, process=proctitle, whitelisted=whitelist_flag
                 )
                 # Now let us add the item to the view
-                self.addUnoonItem(item)
+                self.addUnoonItem(item, uniquehash)
 
             elif result["record_type"] == "path":
+                pid = result["pid"]
+                path = result["name"]
+                process = result["proctitle"]
+                uniquehash = base64.encodebytes(
+                    f"{pid}:{path}:{process}".encode("utf-8")
+                )
                 item = UnoonFileItem(path=result["name"], process=result["proctitle"])
                 # Now let us add the item to the view
-                self.addUnoonItem(item)
+                self.addUnoonItem(item, uniquehash)
 
             # user = find_user(datum.uids().real)
             # Store for the runtime logs
