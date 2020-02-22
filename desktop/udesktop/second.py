@@ -71,6 +71,9 @@ class DataThread(QThread):
             data = self.cl.blpop("background")
             server_data = json.loads(data[1])
 
+            if "record_type" not in server_data:
+                continue
+
             # skip the desktop application itself
             pid = str(server_data["pid"])
             if self.pid == pid:
@@ -164,6 +167,93 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.close()
 
 
+class UnoonFilterArea(QFrame):
+    updateUnoonSignal = pyqtSignal("PyQt_PyObject")
+    CSS = """
+            QFrame#unoonFilterArea {
+                background-color: #1E90FF;
+                border: none;
+            }
+            QCheckBox {
+                background-color: white;
+                border-radius: 10px;
+                color: black;
+                font: 16px;
+                min-height: 2em;
+                min-width: 6em;
+                padding: 5px
+
+            }
+    """
+
+    def __init__(self, parent=None, path="", process=""):
+        super(QWidget, self).__init__(parent)
+        self.setObjectName("unoonFilterArea")
+        self.setMinimumWidth(200)
+        self.setMaximumWidth(200)
+        self.setStyleSheet(self.CSS)
+        layout = QVBoxLayout()
+        self.showAllCheckBox = QCheckBox("Show All")
+        self.showFileIssues = QCheckBox("File access")
+        self.showWhitelist = QCheckBox("Whitelist network")
+        self.showNormalNetwork = QCheckBox("Unknown network")
+        layout.addWidget(self.showAllCheckBox)
+        layout.addWidget(self.showFileIssues)
+        layout.addWidget(self.showWhitelist)
+        layout.addWidget(self.showNormalNetwork)
+        layout.addStretch(2)
+        self.setLayout(layout)
+
+        # set the state
+        # set = 0 when unchecked
+        # set = 2 when checked
+        self.showAllCheckBox.setCheckState(QtCore.Qt.Checked)
+        self.showFileIssues.setCheckState(QtCore.Qt.Checked)
+        self.showFileIssues.stateChanged.connect(self.updateFileFilter)
+        self.showWhitelist.setCheckState(QtCore.Qt.Checked)
+        self.showWhitelist.stateChanged.connect(self.updateWhitelistFilter)
+        self.showNormalNetwork.setCheckState(QtCore.Qt.Checked)
+        self.showNormalNetwork.stateChanged.connect(self.updateNormalNetworkFilter)
+        self.boxes = {
+            "FileFilter": True,
+            "WhitelistFilter": True,
+            "NormalNetworkFilter": True,
+        }
+
+    def updateFileFilter(self, state):
+        if state == 0:
+            # If showAllCheckBox is checked, it should be unchecked now
+            if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
+                self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
+            self.boxes["FileFilter"] = False
+        elif state == 2:
+            # This is when the checkbox is checked
+            self.boxes["FileFilter"] = True
+        self.updateUnoonSignal.emit(self.boxes)
+
+    def updateWhitelistFilter(self, state):
+        if state == 0:
+            # If showAllCheckBox is checked, it should be unchecked now
+            if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
+                self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
+            self.boxes["WhitelistFilter"] = False
+        elif state == 2:
+            # This is when the checkbox is checked
+            self.boxes["WhitelistFilter"] = True
+        self.updateUnoonSignal.emit(self.boxes)
+
+    def updateNormalNetworkFilter(self, state):
+        if state == 0:
+            # If showAllCheckBox is checked, it should be unchecked now
+            if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
+                self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
+            self.boxes["NormalNetworkFilter"] = False
+        elif state == 2:
+            # This is when the checkbox is checked
+            self.boxes["NormalNetworkFilter"] = True
+        self.updateUnoonSignal.emit(self.boxes)
+
+
 class UnoonFileItem(QFrame):
     CSS = """
             QFrame#unoonFileItem {
@@ -177,6 +267,7 @@ class UnoonFileItem(QFrame):
     def __init__(self, parent=None, path="", process=""):
         super(QWidget, self).__init__(parent)
         self.setObjectName("unoonFileItem")
+        self.typename = "FileFilter"
         self.mainlayout = QVBoxLayout()
         datalayout = QHBoxLayout()
         self.title_label = QLabel("")
@@ -235,8 +326,10 @@ class UnoonNetworkItem(QFrame):
         super(QWidget, self).__init__(parent)
         self.setObjectName("unoonNetworkItem")
         self.setStyleSheet(self.CSS)
+        self.typename = "NormalNetworkFilter"
         if whitelisted:
             self.setStyleSheet(self.CSS_WHITELIST)
+            self.typename = "WhitelistFilter"
         self.mainlayout = QVBoxLayout()
         datalayout = QHBoxLayout()
         self.title_label = QLabel("")
@@ -281,6 +374,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Unoon")
         toolbar = self.addToolBar("Mainbar")
         self.processlist = []
+        self.unoonitems = []
+        self.viewFilter = {
+            "FileFilter": True,
+            "WhitelistFilter": True,
+            "NormalNetworkFilter": True,
+        }
 
         self.cl = redis.Redis(
             host=config["host"],
@@ -330,22 +429,34 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sb = self.scrollarea.verticalScrollBar()
         self.sb.rangeChanged.connect(self.update_scrollbar)
 
-        self.tabs.addTab(self.scrollarea, "Notifications")
+        # The left hand side bar
+        self.filterArea = UnoonFilterArea()
+
+        # Connect the signal to update the view
+        self.filterArea.updateUnoonSignal.connect(self.updateUnoonView)
+
+        hlayout = QHBoxLayout(self)
+        hlayout.addWidget(self.filterArea)
+        hlayout.addWidget(self.scrollarea)
+        mainwidget = QWidget()
+        mainwidget.setLayout(hlayout)
+
+        self.tabs.addTab(mainwidget, "Notifications")
         self.setCentralWidget(self.tabs)
 
         un = UnoonFileItem(
             path="/home/kdas/gocode/src/github.com/kushaldas/unoon",
             process="/usr/bin/hello",
         )
-        self.widget_store_layout.addWidget(un)
+        self.addUnoonItem(un)
 
         un2 = UnoonNetworkItem(address="kushaldas.in:443", process="/usr/bin/wget")
-        self.widget_store_layout.addWidget(un2)
+        self.addUnoonItem(un2)
 
         un3 = UnoonNetworkItem(
             address="freedom.press:443", process="/usr/bin/nmap", whitelisted=True
         )
-        self.widget_store_layout.addWidget(un3)
+        self.addUnoonItem(un3)
 
         exitAction = QtWidgets.QAction("E&xit", self)
         exitAction.triggered.connect(self.exit_process)
@@ -376,6 +487,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # self.tr.path_signal.connect(self.show_path_dialog)
         self.tr.start()
 
+    def addUnoonItem(self, item):
+        "Adds the item to the view and also the internal list"
+        if not self.viewFilter[item.typename]:
+            item.hide()
+        self.widget_store_layout.addWidget(item)
+        self.unoonitems.append(item)
+
     def showcurrenttab(self):
         self.tabs.setCurrentIndex(0)
 
@@ -403,11 +521,21 @@ class MainWindow(QtWidgets.QMainWindow):
     def update_scrollbar(self, min_val, max_val):
         self.sb.setValue(max_val)
 
+    def updateUnoonView(self, data: Dict):
+        self.viewFilter = data
+        names = [k for k, v in data.items() if v]
+        for item in self.unoonitems:
+            if item.typename not in names:
+                item.hide()
+            else:
+                item.show()
+
     def update_cp(self, result: Dict):
         "For a given process, update the widgets"
         current_keys = {}
         # for pid in pids:
         # Skip desktop application itself
+        item = None
         try:
             if result["record_type"] == "connect" and result["family"] != "unix":
                 # Find the hostname for the IP
@@ -434,11 +562,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 item = UnoonNetworkItem(
                     address=remote, process=exe, whitelisted=whitelist_flag
                 )
-                self.widget_store_layout.addWidget(item)
+                # Now let us add the item to the view
+                self.addUnoonItem(item)
 
             elif result["record_type"] == "path":
                 item = UnoonFileItem(path=result["name"], process=result["proctitle"])
-                self.widget_store_layout.addWidget(item)
+                # Now let us add the item to the view
+                self.addUnoonItem(item)
 
             # user = find_user(datum.uids().real)
             # Store for the runtime logs
