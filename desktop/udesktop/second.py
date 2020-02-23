@@ -575,6 +575,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Skip desktop application itself
         item = None
         try:
+            pprint(result)
             if result["record_type"] == "connect" and result["family"] != "unix":
                 # Find the hostname for the IP
                 remote_ip = result["addr"]
@@ -586,6 +587,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 remote = "{}:{}".format(remote_host, result["port"])
 
+                # TODO: we will have to find why family = 0 for these situation
+                if remote == ":":
+                    return
                 whitelist_flag = False
                 exe = result["exe"]
                 proctitle = result["proctitle"]

@@ -243,18 +243,27 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 
 		data, _ := msg.Data()
 		recordType := msg.RecordType.String()
+		fmt.Println(":?", line)
 		if recordType == "SYSCALL" {
-			if data["syscall"] == "connect" && data["result"] == "success" {
 
-				if val, ok := filesandcommands[data["sequence"]]; ok {
-					val["exe"] = data["exe"]
-					val["pid"] = data["pid"]
-					filesandcommands[data["sequence"]] = val
-				} else {
-					localData := make(AuditEntry, 1)
-					localData["exe"] = data["exe"]
-					localData["pid"] = data["pid"]
-					filesandcommands[data["sequence"]] = localData
+			if data["syscall"] == "connect" {
+
+				// We get `exit` value as EINPROGRESS when firefox is connecting to
+				// port 0 of the IP. The result says failure, -115.
+				//
+				// The nearest disccussion I can find on the internet is below
+				// https://linux-audit.redhat.narkive.com/fODvvkUi/auditd-reports-port-number-0-for-connect-system-call
+				if data["result"] == "success" || data["exit"] == "EINPROGRESS" {
+					if val, ok := filesandcommands[data["sequence"]]; ok {
+						val["exe"] = data["exe"]
+						val["pid"] = data["pid"]
+						filesandcommands[data["sequence"]] = val
+					} else {
+						localData := make(AuditEntry, 1)
+						localData["exe"] = data["exe"]
+						localData["pid"] = data["pid"]
+						filesandcommands[data["sequence"]] = localData
+					}
 				}
 			} else if data["syscall"] == "openat" || data["syscall"] == "open" {
 				// This is for the syscall related to recordType PATH
@@ -297,7 +306,6 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 				}
 			}
 		} else if recordType == "SOCKADDR" {
-
 			if val, ok := filesandcommands[data["sequence"]]; ok {
 				val["family"] = data["family"]
 				val["port"] = data["port"]
