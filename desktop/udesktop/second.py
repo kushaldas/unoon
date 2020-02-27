@@ -11,11 +11,11 @@ from PyQt5 import QtCore
 
 from typing import Dict
 import psutil
-from ucss import *
-from db import Processhistory, create_session
+
 import subprocess
 import os
 import sys
+import pwd
 import redis
 import json
 import pwd
@@ -24,6 +24,10 @@ from datetime import datetime
 from pprint import pprint
 import yaml
 
+# These are our own code
+from ucss import *
+from db import Processhistory, create_session
+from systemnotify import SystemNotify
 
 PROCESSTYPE = 1
 WHITETYPE = 2
@@ -417,6 +421,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "WhitelistFilter": True,
             "NormalNetworkFilter": True,
         }
+        self.config = config
 
         self.cl = redis.Redis(
             host=config["host"],
@@ -424,6 +429,7 @@ class MainWindow(QtWidgets.QMainWindow):
             password=config["password"],
             db=config["db"],
         )
+        self.notifymachine = SystemNotify(config["user"], config["uid"])
         self.pid = str(os.getpid())
         self.session = create_session()
 
@@ -610,6 +616,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
                 # Now let us add the item to the view
                 self.addUnoonItem(item, uniquehash)
+                if not whitelist_flag:
+                    self.notifymachine.notify("Network access", exe)
 
             elif result["record_type"] == "path":
                 pid = result["pid"]
@@ -621,6 +629,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 item = UnoonFileItem(path=result["name"], process=result["proctitle"])
                 # Now let us add the item to the view
                 self.addUnoonItem(item, uniquehash)
+                self.notifymachine.notify("File accessed", path)
 
             # user = find_user(datum.uids().real)
             # Store for the runtime logs
@@ -657,7 +666,24 @@ def main():
             config = yaml.safe_load(fobj.read())
     except:
         print("Error in reading configuration file. Using default values.")
-        config = {"server": "localhost:6379", "password": "", "db": 0}
+
+        config = {
+            "server": "localhost:6379",
+            "password": "",
+            "db": 0,
+        }
+
+    if "user" in config:
+        user = pwd.getpwnam(config["user"])
+        config["uid"] = user.pw_uid
+    else:
+        try:
+            user = pwd.getpwuid(1000)
+        except:
+            print("Please setup an user account name in the configuration.")
+            sys.exit(-1)
+        config["user"] = user.pw_name
+        config["uid"] = user.pw_uid
 
     host, port = config["server"].split(":")
     port = int(port)
