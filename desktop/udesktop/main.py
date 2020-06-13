@@ -22,11 +22,11 @@ import yaml
 
 
 PROCESSTYPE = 1
-WHITETYPE = 2
+ALLOWEDTYPE = 2
 LOGSTYPE = 3
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-whitelist_file = "/var/lib/unoon/whitelist.txt"
+allowedlist_file = "/var/lib/unoon/allowedlist.txt"
 
 
 def find_user(uid: int) -> str:
@@ -232,21 +232,21 @@ class TableWidget(QtWidgets.QTableWidget):
     def __init__(self, tabletype=PROCESSTYPE):
         super(TableWidget, self).__init__()
         # PROCESSTYPE: this is a process table
-        # WHITETYPE: this is a whitelisted table
+        # ALLOWEDTYPE: this is a ALLOWED table
         # LOGSTYPE: this is a history logs table
         self.tabletype = tabletype
         self.setIconSize(QtCore.QSize(25, 25))
         self.menu = QtWidgets.QMenu()
-        action = QtWidgets.QAction("Mark as Whitelist", self)
-        whitelisticon = QtGui.QIcon(get_asset_path("security_tick.png"))
-        action.setIcon(whitelisticon)
+        action = QtWidgets.QAction("Mark as ALLOWED", self)
+        allowedlisticon = QtGui.QIcon(get_asset_path("security_tick.png"))
+        action.setIcon(allowedlisticon)
         action.triggered.connect(lambda: self.rightClickSlot())
         self.menu.addAction(action)
 
         self.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.setColumnCount(7)
         if self.tabletype != LOGSTYPE:
-            # The unique value is hidden for process and whitelist tables
+            # The unique value is hidden for process and allowedlist tables
             self.setColumnHidden(6, True)
         if self.tabletype != LOGSTYPE:
             header_labels = [
@@ -284,7 +284,7 @@ class TableWidget(QtWidgets.QTableWidget):
 
     def rightClickSlot(self):
         for i in self.selectionModel().selection().indexes():
-            # TODO: find the item and open up the Dialog for adding in whitelist.
+            # TODO: find the item and open up the Dialog for adding in allowed list.
             print(i.row(), i.column())
 
     def contextMenuEvent(self, event):
@@ -353,12 +353,12 @@ class DataThread(QThread):
                 self.path_signal.emit(server_data)
 
 
-class WhitelistDialog(QtWidgets.QDialog):
-    newwhitelist = QtCore.pyqtSignal(str)
+class AllowedListDialog(QtWidgets.QDialog):
+    newallowedlist = QtCore.pyqtSignal(str)
 
     def __init__(self, text):
-        super(WhitelistDialog, self).__init__()
-        self.setWindowTitle("Whitelist commands")
+        super(AllowedListDialog, self).__init__()
+        self.setWindowTitle("Allowed commands")
         self.setModal(True)
         self.setMinimumWidth(700)
 
@@ -367,15 +367,15 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.textbox.setAcceptRichText(False)
         self.textbox.setPlainText(text)
 
-        whitelistlargeicon = QtWidgets.QLabel()
-        whitepixmap = QtGui.QPixmap(get_asset_path("security_tick_large.png"))
-        whitelistlargeicon.setPixmap(whitepixmap)
-        whitelistlabel = QtWidgets.QLabel("List of Whitelisted commands")
-        whitelistlabel.setStyleSheet(QWhiteListBannerCSS)
+        allowedlistlargeicon = QtWidgets.QLabel()
+        allowedpixmap = QtGui.QPixmap(get_asset_path("security_tick_large.png"))
+        allowedlistlargeicon.setPixmap(allowedpixmap)
+        allowedlistlabel = QtWidgets.QLabel("List of allowed commands")
+        allowedlistlabel.setStyleSheet(QAllowedListBannerCSS)
 
         banner_hboxlayout = QtWidgets.QHBoxLayout()
-        banner_hboxlayout.addWidget(whitelistlargeicon)
-        banner_hboxlayout.addWidget(whitelistlabel)
+        banner_hboxlayout.addWidget(allowedlistlargeicon)
+        banner_hboxlayout.addWidget(allowedlistlabel)
         banner_hboxlayout.addStretch()
         # Dialog buttons
         ok_button = QtWidgets.QPushButton("Save")
@@ -400,10 +400,10 @@ class WhitelistDialog(QtWidgets.QDialog):
     def save(self):
         "Saves the text from the textbox"
         text = self.textbox.toPlainText()
-        with open(whitelist_file, "w") as fobj:
+        with open(allowedlist_file, "w") as fobj:
             fobj.write(text)
 
-        self.newwhitelist.emit(text)
+        self.newallowedlist.emit(text)
         self.close()
 
     def cancel(self):
@@ -481,15 +481,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # TODO: In future store this in sqlite
         self.logs = []
 
-        self.whitelist_text = ""
-        self.whitelist = []
+        self.allowedlist_text = ""
+        self.allowedlist = []
 
-        # TODO: Fix the path of the whitelist rules
-        if os.path.exists(whitelist_file):
-            with open(whitelist_file) as fobj:
-                self.whitelist_text = fobj.read()
+        # TODO: Fix the path of the allowedlist rules
+        if os.path.exists(allowedlist_file):
+            with open(allowedlist_file) as fobj:
+                self.allowedlist_text = fobj.read()
 
-        self.update_whitelist(self.whitelist_text)
+        self.update_allowedlist(self.allowedlist_text)
 
         self.setMinimumWidth(1000)
         self.setMinimumHeight(600)
@@ -497,8 +497,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # get a current processes table widget
         self.pTable = TableWidget(tabletype=PROCESSTYPE)
 
-        # get a whitelisted processes table widget
-        self.wTable = TableWidget(tabletype=WHITETYPE)
+        # get a allowedlisted processes table widget
+        self.wTable = TableWidget(tabletype=ALLOWEDTYPE)
 
         # get a logs table to show history
         self.logsTable = TableWidget(tabletype=LOGSTYPE)
@@ -509,8 +509,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         normalicon = QtGui.QIcon(get_asset_path("magnify.png"))
         self.tabs.addTab(self.pTable, normalicon, "Current Processes")
-        whitelisticon = QtGui.QIcon(get_asset_path("security_tick.png"))
-        self.tabs.addTab(self.wTable, whitelisticon, "Whitelisted Processes")
+        allowedlisticon = QtGui.QIcon(get_asset_path("security_tick.png"))
+        self.tabs.addTab(self.wTable, allowedlisticon, "Allowed Processes")
         logsicon = QtGui.QIcon(get_asset_path("logs.png"))
         self.tabs.addTab(self.logsTable, logsicon, "History")
         self.setCentralWidget(self.tabs)
@@ -518,21 +518,21 @@ class MainWindow(QtWidgets.QMainWindow):
         exitAction = QtWidgets.QAction("E&xit", self)
         exitAction.triggered.connect(self.exit_process)
 
-        whitelistAction = QtWidgets.QAction("&Whistlist", self)
-        whitelistAction.triggered.connect(self.show_whitelist)
+        allowedlistAction = QtWidgets.QAction("&Allowed list", self)
+        allowedlistAction.triggered.connect(self.show_allowedlist)
         menu = self.menuBar()
         file = menu.addMenu("&File")
         file.addAction(exitAction)
 
         edit = menu.addMenu("&Edit")
-        edit.addAction(whitelistAction)
+        edit.addAction(allowedlistAction)
 
         self.pTable.setColumnWidth(0, 80)
 
         self.shortcut1 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+1"), self)
         self.shortcut1.activated.connect(self.showcurrenttab)
         self.shortcut2 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+2"), self)
-        self.shortcut2.activated.connect(self.showwhitelisttab)
+        self.shortcut2.activated.connect(self.showallowedlisttab)
         self.shortcut3 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+3"), self)
         self.shortcut3.activated.connect(self.showlogstab)
 
@@ -550,30 +550,30 @@ class MainWindow(QtWidgets.QMainWindow):
     def showcurrenttab(self):
         self.tabs.setCurrentIndex(0)
 
-    def showwhitelisttab(self):
+    def showallowedlisttab(self):
         self.tabs.setCurrentIndex(1)
 
     def showlogstab(self):
         self.tabs.setCurrentIndex(2)
 
-    def update_whitelist(self, text):
-        # Create the current list of whitelisted commands
-        self.whitelist = []
-        self.whitelists_text = text
+    def update_allowedlist(self, text):
+        # Create the current list of allowedlisted commands
+        self.allowedlist = []
+        self.allowedlists_text = text
         for cmd in text.split("\n"):
             cmd = cmd.strip()
             if cmd:
-                self.whitelist.append(cmd)
+                self.allowedlist.append(cmd)
 
     def show_path_dialog(self, data):
         d = FileAccessDialog(data)
         self.fileaccess_dialogs.append(d)
 
-    def show_whitelist(self):
-        "Updates the current whitelist commands"
-        self.whitelist_dialog = WhitelistDialog(self.whitelists_text)
-        self.whitelist_dialog.newwhitelist.connect(self.update_whitelist)
-        self.whitelist_dialog.exec_()
+    def show_allowedlist(self):
+        "Updates the current allowedlist commands"
+        self.allowedlist_dialog = AllowedListDialog(self.allowedlists_text)
+        self.allowedlist_dialog.newallowedlist.connect(self.update_allowedlist)
+        self.allowedlist_dialog.exec_()
 
     def delete_pid(self, pid: str):
         "For the pid which is already gone"
@@ -592,7 +592,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.pTable.removeRow(item.row())
                 continue
 
-                # Check in the whitelisted process table
+                # Check in the allowedlisted process table
             items = self.wTable.findItems(key, QtCore.Qt.MatchFixedString)
             if items:
                 item = items[0]
@@ -648,18 +648,18 @@ class MainWindow(QtWidgets.QMainWindow):
                 if cp_key in self.cp:
                     continue
 
-                whitelist_flag = False
-                for cmd in self.whitelist:
-                    # The following is True for whitelisted commands
+                allowedlist_flag = False
+                for cmd in self.allowedlist:
+                    # The following is True for allowedlisted commands
                     if ac.startswith(cmd):
                         self.update_processtable(
                             self.wTable, datum, con, local, remote, pid, ac, cp_key
                         )
-                        whitelist_flag = True
+                        allowedlist_flag = True
                         break
 
                 # Display popup
-                if not self.first_run and cp_key not in self.cp and not whitelist_flag:
+                if not self.first_run and cp_key not in self.cp and not allowedlist_flag:
                     user = find_user(datum.uids().real)
                     d = NewConnectionDialog(datum, remote, pid, user)
                     self.new_connection_dialogs.append(d)
@@ -687,7 +687,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 # For new processes
                 self.cp[cp_key] = datum
 
-                if whitelist_flag:
+                if allowedlist_flag:
                     continue
 
                 self.update_processtable(
@@ -716,7 +716,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.pTable.removeRow(item.row())
                     continue
 
-                # Check in the whitelisted process table
+                # Check in the allowedlisted process table
                 items = self.wTable.findItems(key, QtCore.Qt.MatchFixedString)
                 if items:
                     item = items[0]

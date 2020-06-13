@@ -8,7 +8,7 @@ QTabBar::tab:!selected {
 }
 """
 
-QWhiteListBannerCSS = """QLabel {
+QAllowedListBannerCSS = """QLabel {
     font-size: 20px;
 
 }
