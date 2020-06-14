@@ -79,16 +79,19 @@ $ sudo service auditd stop
 
 The last command should show you output as shown above.
 
-### Redis server configuration
+### configuration
 
 You should run the redis server along with a password for production, and you
 can provide the same using the following format in `/etc/unoon/unoon.yml`
-file.
+file. You should atleast write the standard username who will receive the desktop
+notifications.
 
-If the file does not exist, it will assume no password is required.
+If the file does not exist, it will assume no password is required, and it will also try
+to find the user with uid `1000`.
 
 ```yaml
 ---
+user: "kdas"
 server: "localhost:6379"
 password: "yourpassword"
 db:     0
