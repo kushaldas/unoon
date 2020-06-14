@@ -30,11 +30,11 @@ from db import Processhistory, create_session
 from systemnotify import SystemNotify
 
 PROCESSTYPE = 1
-WHITETYPE = 2
+ALLOWTYPE = 2
 LOGSTYPE = 3
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-whitelist_file = "/var/lib/unoon/whitelist.txt"
+allowlist_file = "/var/lib/unoon/allowedlist.txt"
 
 
 def find_user(uid: int) -> str:
@@ -115,12 +115,12 @@ class DataThread(QThread):
             #     self.path_signal.emit(server_data)
 
 
-class WhitelistDialog(QtWidgets.QDialog):
-    newwhitelist = QtCore.pyqtSignal(str)
+class AllowListDialog(QtWidgets.QDialog):
+    newallowlist = QtCore.pyqtSignal(str)
 
     def __init__(self, text):
-        super(WhitelistDialog, self).__init__()
-        self.setWindowTitle("Whitelist commands")
+        super(AllowListDialog, self).__init__()
+        self.setWindowTitle("Allowed commands")
         self.setModal(True)
         self.setMinimumWidth(700)
 
@@ -129,15 +129,14 @@ class WhitelistDialog(QtWidgets.QDialog):
         self.textbox.setAcceptRichText(False)
         self.textbox.setPlainText(text)
 
-        whitelistlargeicon = QtWidgets.QLabel()
-        whitepixmap = QtGui.QPixmap(get_asset_path("security_tick_large.png"))
-        whitelistlargeicon.setPixmap(whitepixmap)
-        whitelistlabel = QtWidgets.QLabel("List of Whitelisted commands")
-        # whitelistlabel.setStyleSheet(QWhiteListBannerCSS)
+        allowlistlargeicon = QtWidgets.QLabel()
+        allowpixmap = QtGui.QPixmap(get_asset_path("security_tick_large.png"))
+        allowlistlargeicon.setPixmap(allowpixmap)
+        allowlistlabel = QtWidgets.QLabel("List of allowlisted commands")
 
         banner_hboxlayout = QtWidgets.QHBoxLayout()
-        banner_hboxlayout.addWidget(whitelistlargeicon)
-        banner_hboxlayout.addWidget(whitelistlabel)
+        banner_hboxlayout.addWidget(allowlistlargeicon)
+        banner_hboxlayout.addWidget(allowlistlabel)
         banner_hboxlayout.addStretch()
         # Dialog buttons
         ok_button = QtWidgets.QPushButton("Save")
@@ -162,10 +161,10 @@ class WhitelistDialog(QtWidgets.QDialog):
     def save(self):
         "Saves the text from the textbox"
         text = self.textbox.toPlainText()
-        with open(whitelist_file, "w") as fobj:
+        with open(allowlist_file, "w") as fobj:
             fobj.write(text)
 
-        self.newwhitelist.emit(text)
+        self.newallowlist.emit(text)
         self.close()
 
     def cancel(self):
@@ -200,11 +199,11 @@ class UnoonFilterArea(QFrame):
         layout = QVBoxLayout()
         self.showAllCheckBox = QCheckBox("Show All")
         self.showFileIssues = QCheckBox("File access")
-        self.showWhitelist = QCheckBox("Whitelist network")
+        self.showallowlist = QCheckBox("Allowed network")
         self.showNormalNetwork = QCheckBox("Unknown network")
         layout.addWidget(self.showAllCheckBox)
         layout.addWidget(self.showFileIssues)
-        layout.addWidget(self.showWhitelist)
+        layout.addWidget(self.showallowlist)
         layout.addWidget(self.showNormalNetwork)
         layout.addStretch(2)
         self.setLayout(layout)
@@ -215,13 +214,13 @@ class UnoonFilterArea(QFrame):
         self.showAllCheckBox.setCheckState(QtCore.Qt.Checked)
         self.showFileIssues.setCheckState(QtCore.Qt.Checked)
         self.showFileIssues.stateChanged.connect(self.updateFileFilter)
-        self.showWhitelist.setCheckState(QtCore.Qt.Checked)
-        self.showWhitelist.stateChanged.connect(self.updateWhitelistFilter)
+        self.showallowlist.setCheckState(QtCore.Qt.Checked)
+        self.showallowlist.stateChanged.connect(self.updateallowlistFilter)
         self.showNormalNetwork.setCheckState(QtCore.Qt.Checked)
         self.showNormalNetwork.stateChanged.connect(self.updateNormalNetworkFilter)
         self.boxes = {
             "FileFilter": True,
-            "WhitelistFilter": True,
+            "allowlistFilter": True,
             "NormalNetworkFilter": True,
         }
 
@@ -236,15 +235,15 @@ class UnoonFilterArea(QFrame):
             self.boxes["FileFilter"] = True
         self.updateUnoonSignal.emit(self.boxes)
 
-    def updateWhitelistFilter(self, state):
+    def updateallowlistFilter(self, state):
         if state == 0:
             # If showAllCheckBox is checked, it should be unchecked now
             if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
                 self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
-            self.boxes["WhitelistFilter"] = False
+            self.boxes["allowlistFilter"] = False
         elif state == 2:
             # This is when the checkbox is checked
-            self.boxes["WhitelistFilter"] = True
+            self.boxes["allowlistFilter"] = True
         self.updateUnoonSignal.emit(self.boxes)
 
     def updateNormalNetworkFilter(self, state):
@@ -313,10 +312,10 @@ class UnoonNetworkItem(QFrame):
             QPushButton {
 
                 background-color: dimgrey;
-                color: white;
+                color: allow;
             }
     """
-    CSS_WHITELIST = """
+    CSS_ALLOWLIST = """
                 QFrame#unoonNetworkItem {
                 border: 2px solid green;
                 background-color: rgb(255,255,255);
@@ -330,7 +329,7 @@ class UnoonNetworkItem(QFrame):
             QPushButton {
 
                 background-color: dimgrey;
-                color: white;
+                color: allow;
             }
     """
 
@@ -340,7 +339,7 @@ class UnoonNetworkItem(QFrame):
         address="",
         process="",
         cwd="",
-        whitelisted=False,
+        allowlisted=False,
         pid="",
         uniquehash="",
     ):
@@ -355,9 +354,9 @@ class UnoonNetworkItem(QFrame):
         # We will update the widget based on this hash
         self.uniquehash = uniquehash
         self.usage = 1
-        if whitelisted:
-            self.setStyleSheet(self.CSS_WHITELIST)
-            self.typename = "WhitelistFilter"
+        if allowlisted:
+            self.setStyleSheet(self.CSS_ALLOWLIST)
+            self.typename = "AllowlistFilter"
         self.mainlayout = QVBoxLayout()
         datalayout = QHBoxLayout()
         self.title_label = QLabel("")
@@ -418,7 +417,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.unoonhashes = {}
         self.viewFilter = {
             "FileFilter": True,
-            "WhitelistFilter": True,
+            "AllowlistFilter": True,
             "NormalNetworkFilter": True,
         }
         self.config = config
@@ -437,15 +436,15 @@ class MainWindow(QtWidgets.QMainWindow):
         # TODO: In future store this in sqlite
         self.logs = []
 
-        self.whitelist_text = ""
-        self.whitelist = []
+        self.allowlist_text = ""
+        self.allowlist = []
 
-        # TODO: Fix the path of the whitelist rules
-        if os.path.exists(whitelist_file):
-            with open(whitelist_file) as fobj:
-                self.whitelist_text = fobj.read()
+        # TODO: Fix the path of the allowlist rules
+        if os.path.exists(allowlist_file):
+            with open(allowlist_file) as fobj:
+                self.allowlist_text = fobj.read()
 
-        self.update_whitelist(self.whitelist_text)
+        self.update_allowlist(self.allowlist_text)
 
         self.setMinimumWidth(1000)
         self.setMinimumHeight(600)
@@ -490,19 +489,19 @@ class MainWindow(QtWidgets.QMainWindow):
         exitAction = QtWidgets.QAction("E&xit", self)
         exitAction.triggered.connect(self.exit_process)
 
-        whitelistAction = QtWidgets.QAction("&Whistlist", self)
-        whitelistAction.triggered.connect(self.show_whitelist)
+        allowlistAction = QtWidgets.QAction("&Whistlist", self)
+        allowlistAction.triggered.connect(self.show_allowlist)
         menu = self.menuBar()
         file = menu.addMenu("&File")
         file.addAction(exitAction)
 
         edit = menu.addMenu("&Edit")
-        edit.addAction(whitelistAction)
+        edit.addAction(allowlistAction)
 
         self.shortcut1 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+1"), self)
         self.shortcut1.activated.connect(self.showcurrenttab)
         self.shortcut2 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+2"), self)
-        self.shortcut2.activated.connect(self.showwhitelisttab)
+        self.shortcut2.activated.connect(self.showallowlisttab)
         self.shortcut3 = QtWidgets.QShortcut(QtGui.QKeySequence("Alt+3"), self)
         self.shortcut3.activated.connect(self.showlogstab)
 
@@ -541,26 +540,26 @@ class MainWindow(QtWidgets.QMainWindow):
     def showcurrenttab(self):
         self.tabs.setCurrentIndex(0)
 
-    def showwhitelisttab(self):
+    def showallowlisttab(self):
         self.tabs.setCurrentIndex(1)
 
     def showlogstab(self):
         self.tabs.setCurrentIndex(2)
 
-    def update_whitelist(self, text):
-        # Create the current list of whitelisted commands
-        self.whitelist = []
-        self.whitelists_text = text
+    def update_allowlist(self, text):
+        # Create the current list of allowlisted commands
+        self.allowlist = []
+        self.allowlists_text = text
         for cmd in text.split("\n"):
             cmd = cmd.strip()
             if cmd:
-                self.whitelist.append(cmd)
+                self.allowlist.append(cmd)
 
-    def show_whitelist(self):
-        "Updates the current whitelist commands"
-        self.whitelist_dialog = WhitelistDialog(self.whitelists_text)
-        self.whitelist_dialog.newwhitelist.connect(self.update_whitelist)
-        self.whitelist_dialog.exec_()
+    def show_allowlist(self):
+        "Updates the current allowlist commands"
+        self.allowlist_dialog = AllowlistDialog(self.allowlists_text)
+        self.allowlist_dialog.newallowlist.connect(self.update_allowlist)
+        self.allowlist_dialog.exec_()
 
     def update_scrollbar(self, min_val, max_val):
         self.sb.setValue(max_val)
@@ -596,15 +595,15 @@ class MainWindow(QtWidgets.QMainWindow):
                 # TODO: we will have to find why family = 0 for these situation
                 if remote == ":":
                     return
-                whitelist_flag = False
+                allowlist_flag = False
                 exe = result["exe"]
                 proctitle = result["proctitle"]
 
-                # Now find if this is whitelisted
-                for cmd in self.whitelist:
-                    # The following is True for whitelisted commands
+                # Now find if this is allowlisted
+                for cmd in self.allowlist:
+                    # The following is True for allowlisted commands
                     if exe.startswith(cmd):
-                        whitelist_flag = True
+                        allowlist_flag = True
                         break
 
                 pid = ""
@@ -612,11 +611,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 uniquehash = base64.encodebytes(line.encode("utf-8"))
                 # Now create the widget
                 item = UnoonNetworkItem(
-                    address=remote, process=proctitle, whitelisted=whitelist_flag
+                    address=remote, process=proctitle, allowlisted=allowlist_flag
                 )
                 # Now let us add the item to the view
                 self.addUnoonItem(item, uniquehash)
-                if not whitelist_flag:
+                if not allowlist_flag:
                     self.notifymachine.notify("Network access", exe)
 
             elif result["record_type"] == "path":

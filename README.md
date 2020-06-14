@@ -117,5 +117,5 @@ sudo python3 ./desktop/udesktop/db.py
 Start the frontend:
 
 ```sh
-sudo python3 ./desktop/udesktop/main.py
+sudo python3 ./desktop/udesktop/second.py
 ```

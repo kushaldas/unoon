@@ -243,7 +243,7 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 
 		data, _ := msg.Data()
 		recordType := msg.RecordType.String()
-		fmt.Println(":?", line)
+		//fmt.Println(":?", line)
 		if recordType == "SYSCALL" {
 
 			if data["syscall"] == "connect" {
