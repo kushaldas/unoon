@@ -489,7 +489,7 @@ class MainWindow(QtWidgets.QMainWindow):
         exitAction = QtWidgets.QAction("E&xit", self)
         exitAction.triggered.connect(self.exit_process)
 
-        allowlistAction = QtWidgets.QAction("&Whistlist", self)
+        allowlistAction = QtWidgets.QAction("&Allowed Processes", self)
         allowlistAction.triggered.connect(self.show_allowlist)
         menu = self.menuBar()
         file = menu.addMenu("&File")
@@ -557,7 +557,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def show_allowlist(self):
         "Updates the current allowlist commands"
-        self.allowlist_dialog = AllowlistDialog(self.allowlists_text)
+        self.allowlist_dialog = AllowListDialog(self.allowlists_text)
         self.allowlist_dialog.newallowlist.connect(self.update_allowlist)
         self.allowlist_dialog.exec_()
 
