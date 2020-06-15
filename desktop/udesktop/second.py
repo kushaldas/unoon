@@ -197,11 +197,9 @@ class UnoonFilterArea(QFrame):
         self.setMaximumWidth(240)
         self.setStyleSheet(self.CSS)
         layout = QVBoxLayout()
-        self.showAllCheckBox = QCheckBox("Show All")
         self.showFileIssues = QCheckBox("File access")
         self.showallowlist = QCheckBox("Allowed connections")
         self.showNormalNetwork = QCheckBox("Unknown connections")
-        layout.addWidget(self.showAllCheckBox)
         layout.addWidget(self.showFileIssues)
         layout.addWidget(self.showallowlist)
         layout.addWidget(self.showNormalNetwork)
@@ -211,7 +209,6 @@ class UnoonFilterArea(QFrame):
         # set the state
         # set = 0 when unchecked
         # set = 2 when checked
-        self.showAllCheckBox.setCheckState(QtCore.Qt.Checked)
         self.showFileIssues.setCheckState(QtCore.Qt.Checked)
         self.showFileIssues.stateChanged.connect(self.updateFileFilter)
         self.showallowlist.setCheckState(QtCore.Qt.Checked)
@@ -220,15 +217,12 @@ class UnoonFilterArea(QFrame):
         self.showNormalNetwork.stateChanged.connect(self.updateNormalNetworkFilter)
         self.boxes = {
             "FileFilter": True,
-            "allowlistFilter": True,
+            "AllowedListFilter": True,
             "NormalNetworkFilter": True,
         }
 
     def updateFileFilter(self, state):
         if state == 0:
-            # If showAllCheckBox is checked, it should be unchecked now
-            if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
-                self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
             self.boxes["FileFilter"] = False
         elif state == 2:
             # This is when the checkbox is checked
@@ -237,20 +231,15 @@ class UnoonFilterArea(QFrame):
 
     def updateallowlistFilter(self, state):
         if state == 0:
-            # If showAllCheckBox is checked, it should be unchecked now
-            if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
-                self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
-            self.boxes["allowlistFilter"] = False
+            self.boxes["AllowedListFilter"] = False
         elif state == 2:
             # This is when the checkbox is checked
-            self.boxes["allowlistFilter"] = True
+            self.boxes["AllowedListFilter"] = True
         self.updateUnoonSignal.emit(self.boxes)
 
     def updateNormalNetworkFilter(self, state):
         if state == 0:
             # If showAllCheckBox is checked, it should be unchecked now
-            if self.showAllCheckBox.checkState() == QtCore.Qt.Checked:
-                self.showAllCheckBox.setCheckState(QtCore.Qt.Unchecked)
             self.boxes["NormalNetworkFilter"] = False
         elif state == 2:
             # This is when the checkbox is checked
@@ -356,7 +345,7 @@ class UnoonNetworkItem(QFrame):
         self.usage = 1
         if allowlisted:
             self.setStyleSheet(self.CSS_ALLOWLIST)
-            self.typename = "AllowlistFilter"
+            self.typename = "AllowedListFilter"
         self.mainlayout = QVBoxLayout()
         datalayout = QHBoxLayout()
         self.title_label = QLabel("")
@@ -417,7 +406,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.unoonhashes = {}
         self.viewFilter = {
             "FileFilter": True,
-            "AllowlistFilter": True,
+            "AllowedListFilter": True,
             "NormalNetworkFilter": True,
         }
         self.config = config
