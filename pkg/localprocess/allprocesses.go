@@ -168,7 +168,7 @@ func Read(redisdb *redis.Client) error {
 
 	var err error
 	var client *libaudit.AuditClient
-	if *receiveOnly {
+	if true {
 		client, err = libaudit.NewMulticastAuditClient(diagWriter)
 		if err != nil {
 			return errors.Wrap(err, "failed to create receive-only audit client")
@@ -255,6 +255,7 @@ func receive(r *libaudit.AuditClient, redisdb *redis.Client) error {
 				// https://linux-audit.redhat.narkive.com/fODvvkUi/auditd-reports-port-number-0-for-connect-system-call
 				if data["result"] == "success" || data["exit"] == "EINPROGRESS" {
 					if val, ok := filesandcommands[data["sequence"]]; ok {
+						fmt.Println(":?", data)
 						val["exe"] = data["exe"]
 						val["pid"] = data["pid"]
 						filesandcommands[data["sequence"]] = val
