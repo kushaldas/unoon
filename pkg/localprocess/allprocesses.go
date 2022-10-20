@@ -13,10 +13,7 @@ import (
 	"github.com/elastic/go-libaudit"
 	"github.com/elastic/go-libaudit/auparse"
 	"github.com/go-redis/redis/v7"
-	"github.com/google/gopacket"
 	_ "github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
-	"github.com/kushaldas/bomcapture/pkg/capturing"
 	"github.com/pkg/errors"
 	"github.com/shirou/gopsutil/net"
 	"github.com/shirou/gopsutil/process"
@@ -101,45 +98,7 @@ func ProcessMap() ProcessDB {
 	return localdb
 }
 
-func RecordDNS(device string, server string, password string, db int) {
 
-	inactive, err := pcap.NewInactiveHandle(device)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer inactive.CleanUp()
-
-	// Finally, create the actual handle by calling Activate:
-	handle, err := inactive.Activate() // after this, inactive is no longer valid
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer handle.Close()
-
-	redisdb := redis.NewClient(&redis.Options{
-		Addr:     server,
-		Password: password,
-		DB:       db,
-	})
-
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	for packet := range packetSource.Packets() {
-		res, err := capturing.ParsePacket(packet, true)
-		if err == nil {
-			if len(res) > 0 {
-
-				data := res[0].(capturing.BDNS)
-				for _, ip := range data.Ips {
-					rname := fmt.Sprintf("ip:%s", ip)
-					redisdb.SAdd(rname, data.Name)
-
-				}
-
-			}
-		}
-
-	}
-}
 
 func PushProcessDB(p ProcessDB, redisdb *redis.Client) {
 

@@ -13,7 +13,6 @@ var PDB localprocess.ProcessDB
 
 func main() {
 
-	device := flag.String("device", "wlp4s0", "The device from where we will capture DNS data  (as root).")
 	flag.Parse()
 
 	viper.SetConfigName("unoon")
@@ -28,7 +27,6 @@ func main() {
 	viper.SetDefault("password", "")
 	viper.SetDefault("db", 0)
 
-	go localprocess.RecordDNS(*device, viper.GetString("server"), viper.GetString("password"), viper.GetInt("db"))
 	redisdb := redis.NewClient(&redis.Options{
 		Addr:     viper.GetString("server"),
 		Password: viper.GetString("password"),
