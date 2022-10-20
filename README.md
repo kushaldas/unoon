@@ -62,7 +62,6 @@ In future we may add rules in a different way, but for now, we will use `auditd`
 ```bash
 $ sudo systemctl start auditd
 $ sudo systemctl status auditd
-$ sudo systemctl stop auditd
 $ sudo auditctl -l
 -a always,exit -F arch=b64 -S connect,bind,listen -F key=unoon_network
 -a always,exit -F arch=b64 -S exit,exit_group -F key=unoon_exit
@@ -73,7 +72,6 @@ On Fedora you may have to use the `service` command.
 
 ```bash
 $ sudo service auditd restart
-$ sudo service auditd stop
 ```
 
 
@@ -105,7 +103,6 @@ Start the backend:
 sudo ./unoon
 ```
 
-You can pass a different interface name with `-device` flag to the `unoon` executable.
 
 Next, create the database directory and also the sqlite database.
 
