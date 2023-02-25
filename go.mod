@@ -6,7 +6,6 @@ require (
 	github.com/elastic/go-libaudit v0.4.0
 	github.com/go-redis/redis/v7 v7.0.0-beta.4
 	github.com/google/gopacket v1.1.17
-	github.com/kushaldas/bomcapture v0.0.0-20190929134314-b2e624f4d821
 	github.com/pkg/errors v0.8.0
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/sirupsen/logrus v1.2.0
@@ -28,7 +27,8 @@ require (
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2 // indirect
-	golang.org/x/sys v0.0.0-20190916202348-b4ddaad3f8a3 // indirect
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.0 // indirect
 	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
